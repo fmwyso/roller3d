@@ -1,8 +1,7 @@
 Written by fmwyso; feel free to send any comments, questions or suggestions to me on Discord (fmwyso#3492).
 <br />
 This page heavily uses <a href="https://threejs.org/">threejs</a> and <a href="https://createjs.com/tweenjs">tweenjs</a>. 
-I want to thank the following authors/pages for their examples & code snippets that made this development possible.
-
+I want to thank the following authors/pages for their examples & code snippets that made this development possible:
 <a href="https://threejs.org/examples/?q=bloom#webgl_postprocessing_unreal_bloom_selective">Temdog007's threejs example</a>
 <br />
 <a href="https://threejs.org/examples/webgl_shadowmap.html">threejs webgl_shadowmap example</a>
