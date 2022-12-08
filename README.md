@@ -1,4 +1,6 @@
 Written by fmwyso; feel free to send any comments, questions or suggestions to me on Discord (fmwyso#3492).
+<br />
+For a quick start guide, <a href="https://www.youtube.com/watch?v=eabQi0bLK0M">watch this YouTube video</a>
 <br /><br />
 This page heavily uses <a href="https://threejs.org/">threejs</a> and <a href="https://createjs.com/tweenjs">tweenjs</a>. 
 I want to thank the following authors/pages for their examples & code snippets that made this development possible:
