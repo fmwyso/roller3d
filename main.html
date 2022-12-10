@@ -28,6 +28,7 @@
 		padding: .5em;
 		background: #444;
 		color: white;
+		max-width:500px;
 		}
 		canvas { 
 		min-width: 100%;
@@ -56,6 +57,12 @@
 		.rollResultsDiv {
 			text-align: center;
 		}
+		.rollQueueDiv {
+			text-align: center;
+		}
+		.twitchIntegrationDiv {
+			text-align: center;
+		}
 	</style>
 
 	<head>
@@ -73,9 +80,11 @@
 			</div>
 			<div id="editor">
 				<div class="rollDiv">
-					<label for="rolls">Number of Rolls</label>
+					<label for="nameBox">Name</label>
+					<input type="text" name="nameBox" id="nameBox" value="Bear"></input>
+					<label for="rolls">Roll Count</label>
 					<input type="number" min="1" name="roll_count" id="roll_count" value=1></input>
-					<button type="button" id="roll_btn">Roll!</button>
+					<button type="button" id="roll_btn">Add to Roll Queue</button>
 				</div>
 
 				<div class="choicesDiv">
@@ -86,10 +95,20 @@
 					<button type="button" id="updateChoicesButton">Update Choices</button>
 				</div>
 
+				<div class="rollQueueDiv"> 
+					<label for="rollQueueDisplay">Roll Queue</label>
+					<br />
+					<textarea id="rollQueueDisplay" name="rollQueueDisplay" rows="12" cols="50" readonly></textarea>
+				</div>
+
 				<div class="rollResultsDiv">
 					<label for="rollResults">Roll Results</label>
 					<br />
 					<textarea id="rollResults" name="rollResults" rows="12" cols="50" readonly></textarea>
+				</div>
+
+				<div class="twitchIntegrationDiv">
+					<a href="https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=https://fmwyso.github.io/roller3d/main.html&scope=channel:read:subscriptions">Click here to sign in through Twitch</a>
 				</div>
 
 				<div class="rollDiv" style="text-align: center">
@@ -154,6 +173,133 @@
 		
 		<script type="module">
 
+			var clientId = 'zzkq9lw1rprzcr2edg6hn61ducjvri';
+			var redirectURI = window.location.protocol + "//" + window.location.host + window.location.pathname;
+			var scope = "channel:read:subscriptions";
+			var ws;
+			var readyToSend = false;
+
+			// Source: https://www.thepolyglotdeveloper.com/2015/03/create-a-random-nonce-string-using-javascript/
+			function nonce(length) {
+				var text = "";
+				var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+				for (var i = 0; i < length; i++) {
+					text += possible.charAt(Math.floor(Math.random() * possible.length));
+				}
+				return text;
+			}
+
+			function heartbeat() {
+				var message = {
+					type: 'PING'
+				};
+				console.log(('SENT: ' + JSON.stringify(message) + '\n'));
+				ws.send(JSON.stringify(message));
+			}
+
+			function listen(topic, auth_token) {
+				var message = {
+					type: 'LISTEN',
+					nonce: nonce(15),
+					data: {
+						topics: [topic],
+						auth_token: auth_token
+					}
+				};
+				console.log('SENT: ' + JSON.stringify(message) + '\n');
+				ws.send(JSON.stringify(message));
+			}
+
+			function connect(channel_id, auth_token) {
+				var heartbeatInterval = 1000 * 60; //ms between PING's
+				var reconnectInterval = 1000 * 3; //ms to wait before reconnect
+				var heartbeatHandle;
+
+				ws = new WebSocket('wss://pubsub-edge.twitch.tv');
+
+				ws.onopen = function(event) {
+					readyToSend = true;
+					console.log('INFO: Socket Opened\n');
+					heartbeat();
+					heartbeatHandle = setInterval(heartbeat, heartbeatInterval);
+					listen("channel-subscribe-events-v1." + channel_id, auth_token);
+				};
+
+				ws.onerror = function(error) {
+					console.log('ERR:  ' + JSON.stringify(error) + '\n');
+				};
+
+				ws.onmessage = function(event) {
+					var message = JSON.parse(event.data);
+					console.log('RECV: ' + JSON.stringify(message) + '\n');
+					if (message.type == 'RECONNECT') {
+						console.log('INFO: Reconnecting...\n');
+						setTimeout(connect, reconnectInterval);
+					}
+					if (message.type == "MESSAGE") {
+						// Sub/Resub
+
+						let name = null;
+						let count = null;
+
+						if(message.data.message.context == "anonsubgift") {
+							name = message.data.message.recipient_display_name;
+						}
+						else {
+							name = message.data.message.display_name;
+						}
+						
+						if(message.data.message.multi_month_duration === undefined) {
+							count = 1;
+						}
+						else {
+							count = parseInt(message.data.message.multi_month_duration);
+						}
+						
+						console.log("INFO: Adding sub", name, count);
+
+						queueRoll(name, count);
+					}
+				}
+
+				ws.onclose = function() {
+					console.log('INFO: Socket Closed\n');
+					clearInterval(heartbeatHandle);
+					console.log('INFO: Reconnecting...\n');
+					setTimeout(connect, reconnectInterval);
+				};
+			}
+
+			function updateRollQueueDisplay() {
+				let rollQueueDisplay = document.querySelector("#rollQueueDisplay");
+
+				let resultsMessages = [];
+
+				if(rollTotalCounts.size >= 1) {
+					let first_key = rollTotalCounts.keys().next().value
+
+					for (let [key, value] of rollTotalCounts) {
+						if(is_rolling && key == first_key) {
+							continue;
+						}
+						resultsMessages.push(key + " (" + value + ")");
+					}
+				}
+
+				rollQueueDisplay.value = resultsMessages.join('\n');
+			}
+
+			function queueRoll(name, roll_count) {
+				if(rollTotalCounts.has(name)) {
+					rollTotalCounts.set(name, rollTotalCounts.get(name) + roll_count);
+				}
+				else {
+					rollTotalCounts.set(name, roll_count);
+					rollCurSpinCounts.set(name, 0);
+				}
+				updateRollQueueDisplay();
+			}
+
 			import * as THREE from 'three';
 
 			import Stats from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/libs/stats.module.js';
@@ -161,7 +307,6 @@
 			import { GLTFLoader } from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/loaders/GLTFLoader.js';
 			import { FontLoader } from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/loaders/FontLoader.js';
 			import { TextGeometry } from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/geometries/TextGeometry.js';
-			import { ShadowMapViewer } from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/utils/ShadowMapViewer.js';
 			import { RoomEnvironment} from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/environments/RoomEnvironment.js';
 			import { UnrealBloomPass} from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/postprocessing/UnrealBloomPass.js';
 			import { RenderPass} from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/postprocessing/RenderPass.js';
@@ -187,8 +332,6 @@
 			var rollResultsCount = new Map();
 			var rollResultsTextMesh = new Map();
 			let rollResultsGroup = new THREE.Group();
-			
-			const SHADOW_MAP_WIDTH = 2048, SHADOW_MAP_HEIGHT = 1024;
 
 			let SCREEN_WIDTH = window.innerWidth;
 			let SCREEN_HEIGHT = window.innerHeight;
@@ -198,10 +341,18 @@
 			let bloomLayer;
 			let container, stats;
 
+			let spinnerTween = null;
+
 			let segments = [];
 			let choices = [];
 			const segmentGroup = new THREE.Group();
 			let rewardsFadeOut = [];
+
+			let rollQueue = [];
+			let curRoll;
+
+			let nameTextMesh;
+			let rollCountMesh;
 
 			let rewardsYPositions = new Map([
 				[0, 4],
@@ -212,8 +363,7 @@
 				[5, 7], 
 				[6, 1], 
 				[7, 8], 
-				[8, 0], 
-				[9, 9]
+				[8, 9],
 			]);
 
 			const NEAR = 10, FAR = 3000;
@@ -221,12 +371,14 @@
 			const morphs = [];
 
 			let light;
-			let lightShadowMapViewer;
 
 			const clock = new THREE.Clock();
 
-			let rollsLeft = 0;
-			let rollSpeed = 0;
+			let is_rolling = false;
+			let rollTotalCounts = new Map();
+			let rollCurSpinCounts = new Map();
+
+			let lastRollTime;
 
 			// From https://discourse.threejs.org/t/load-font-into-global-variable-efficiency/31608/2
 			const fontLoader = new FontLoader();
@@ -274,14 +426,6 @@
 				light.position.set( 0, 1500, 1000 );
 				light.target.position.set( 0, 0, 0 );
 
-				light.castShadow = true;
-				light.shadow.camera.near = 1200;
-				light.shadow.camera.far = 2500;
-				light.shadow.bias = 0.0001;
-
-				light.shadow.mapSize.width = SHADOW_MAP_WIDTH;
-				light.shadow.mapSize.height = SHADOW_MAP_HEIGHT;
-
 				scene.add( light );
 
 				// RENDERER
@@ -293,17 +437,37 @@
 				renderer.outputEncoding = THREE.sRGBEncoding;
 				renderer.autoClear = false;
 
-				//
-				renderer.shadowMap.enabled = true;
-				renderer.shadowMap.type = THREE.PCFShadowMap;
-
 				// CONTROLS
-
-
-				createHUD();
 				createScene();
 
 				// STATS
+				const urlParams = new URLSearchParams(window.location.hash.substring(1));
+				
+				if(urlParams.has("access_token")) {
+					var access_token = urlParams.get('access_token');
+
+					fetch(
+						'https://api.twitch.tv/helix/users',
+						{
+							"headers": {
+								"Client-ID": "zzkq9lw1rprzcr2edg6hn61ducjvri",
+								"Authorization": "Bearer " + access_token
+							}
+						}
+					)
+					.then(resp => resp.json())
+					.then(resp => {
+						let channel_id = resp["data"][0]["id"];
+						
+						connect(channel_id, access_token);
+					})
+					.catch(err => {
+						console.log(err);
+					});
+				
+				}
+
+
 
 				// stats = new Stats();
 				window.addEventListener( 'resize', onWindowResize(false) );
@@ -321,17 +485,6 @@
 				switch ( event.keyCode ) {
 
 				}
-
-			}
-
-			function createHUD() {
-
-				lightShadowMapViewer = new ShadowMapViewer( light );
-				lightShadowMapViewer.position.x = 10;
-				lightShadowMapViewer.position.y = SCREEN_HEIGHT - ( SHADOW_MAP_HEIGHT / 4 ) - 10;
-				lightShadowMapViewer.size.width = SHADOW_MAP_WIDTH / 4;
-				lightShadowMapViewer.size.height = SHADOW_MAP_HEIGHT / 4;
-				lightShadowMapViewer.update();
 
 			}
 
@@ -357,9 +510,6 @@
 
 				mesh.position.x = -0.5 * ( textGeo.boundingBox.max.x - textGeo.boundingBox.min.x );
 				mesh.position.y = -0.5 * ( textGeo.boundingBox.max.y - textGeo.boundingBox.min.y );
-				
-				mesh.castShadow = true;
-				mesh.receiveShadow = true;
 
 				return mesh;
 			}
@@ -410,9 +560,6 @@
 				var cubeMat = new THREE.MeshBasicMaterial( {color: 0x00ff00} );
 
 				const cube = new THREE.Mesh( cubeGeo, metalMaterial );
-
-				cube.castShadow = true;
-				cube.receiveShadow = true;
 
 				cube.position.y = FLOOR + 200;
 				cube.position.z = -50;
@@ -476,9 +623,6 @@
 
 				mesh.rotateZ(Math.PI / 2);
 				mesh.rotateY(Math.PI);
-
-				mesh.castShadow = true;
-				// mesh.receiveShadow = true;
 
 				let text = createTextStroked(display_str, 24, 3, 3, 1, 0x900000, 0xfbf5e9);
 
@@ -572,11 +716,101 @@
 				scene.add(segmentGroup);
 			}
 
-			document.querySelector('#roll_btn').addEventListener('click', roll_wheel)
+			document.querySelector('#roll_btn').addEventListener('click', addToQueue)
+
+			function updateRollCount() {
+				scene.remove(rollCountMesh);
+
+				if(getCurRollCount() < getCurRollTotal()) {
+					rollCountMesh = createTextStroked((getCurRollCount()+1).toString() + " of " + getCurRollTotal().toString(), 20, 2, 1, 1, 0xcccccc, 0x000000);
+
+					rollCountMesh.rotateY(-Math.PI/8);
+					rollCountMesh.geometry.computeBoundingBox();
+					let rollCount_width = rollCountMesh.geometry.boundingBox.max.x - rollCountMesh.geometry.boundingBox.min.x;
+					rollCountMesh.position.x = (-0.5 * rollCount_width) - 70;
+					rollCountMesh.position.y = -135;
+					rollCountMesh.position.z = 50;
+
+					scene.add(rollCountMesh);
+				}
+			}
+
+			function finishCurRoll() {
+
+				is_rolling = false;
+
+				for (let [key, value] of rollResultsTextMesh) {
+					value.traverse(addFadeTween);
+				}
+
+				nameTextMesh.traverse(addFadeTween);
+
+				if(rollTotalCounts.size > 0) {
+
+					let cur_name = getCurRollName();
+
+					let resultsText = document.querySelector("#rollResults");
+
+					let resultsMessages = [];
+
+					for (let [key, value] of rollResultsCount) {
+						resultsMessages.push(value + "x " + key);
+					}
+
+					resultsText.value = getCurRollName() + ": " + resultsMessages.join(', ') + "\n" + resultsText.value;
+
+					lastRollTime = new Date();
+
+					rollTotalCounts.delete(cur_name);
+					rollCurSpinCounts.delete(cur_name);
+				}
+				else {
+					console.log("ERROR: Trying to finish cur roll but no current roll present");
+				}
+			}
+			function getCurRollCount() {
+				if(rollCurSpinCounts.size > 0) {
+					return rollCurSpinCounts.values().next().value;
+				}
+				
+				console.log("ERR: Calling cur roll count but there are no rolls left");
+				return 0;
+			}
+
+			function getCurRollTotal() {
+				if(rollTotalCounts.size > 0) {
+					return rollTotalCounts.values().next().value;
+				}
+				
+				console.log("ERR: Calling cur roll total but there are no rolls left");
+				return 0;
+			}
+
+			function getCurRollSpeed() { 
+				return Math.max(500, 3056.384972*(Math.pow(0.9815517441, getCurRollTotal())));
+			}
 
 			function roll_wheel() {
-				rollsLeft = document.querySelector("#roll_count").value
-				rollSpeed = Math.max(500, 3056.384972*(Math.pow(0.9815517441, rollsLeft)))
+				is_rolling = true;
+
+				scene.remove(nameTextMesh);
+
+				nameTextMesh = createTextStroked("Thanks " + getCurRollName() + "!", 22, 2, 1, 1, 0x0066cc, 0x000000);
+
+				nameTextMesh.rotateY(-Math.PI/8);
+				nameTextMesh.geometry.computeBoundingBox();
+				let nameText_width = nameTextMesh.geometry.boundingBox.max.x - nameTextMesh.geometry.boundingBox.min.x;
+				nameTextMesh.position.x = -0.5 * nameText_width;
+				nameTextMesh.position.y = 115;
+				nameTextMesh.position.z = 50;
+
+				scene.add(nameTextMesh);
+
+
+				updateRollCount();
+				
+
+				// nameTextMesh.traverse(enableBloom);
 				
 				scene.remove(rollResultsGroup);
 				rollResultsGroup = new THREE.Group();
@@ -594,25 +828,58 @@
 			}
 
 			function startRollTween() {
-				var tweener = new TWEEN.Tween(segmentGroup.rotation)
-						.to({ x: "-" + (2*Math.PI*Math.random() + 3*Math.PI)}, rollSpeed)
-						.easing(TWEEN.Easing.Exponential.InOut)
+				if(spinnerTween != null) {
+					TWEEN.remove(spinnerTween);
+				}
+
+				spinnerTween = new TWEEN.Tween(segmentGroup.rotation)
+						.to({ x: "-" + (2*Math.PI*Math.random() + 3*Math.PI)}, getCurRollSpeed())
+						.easing(TWEEN.Easing.Cubic.InOut)
 						.onComplete(finishOneRoll)
 						.start()
 			}
 
 			function addFadeTween(obj) {
-				rewardsFadeOut.push(new TWEEN.Tween(obj.material).delay(10000)
+				rewardsFadeOut.push(new TWEEN.Tween(obj.material).delay(3000)
 							.to({opacity: 0}, 1)
 							.easing(TWEEN.Easing.Sinusoidal.In)
 							.start());
 			}
 
+			function getCurRollName() {
+				if(rollTotalCounts.size > 0) {
+					return rollTotalCounts.keys().next().value;
+				}
+
+				console.log("ERR: Trying to get roll name but there aren't any rolls left");
+				return "N/A";
+			}
+
+			function addOneRoll() {
+				let cur_name = getCurRollName();
+
+				rollCurSpinCounts.set(cur_name, getCurRollCount() + 1);
+			}
+
 			function finishOneRoll() {
-				rollsLeft -= 1;
-				if(rollsLeft > 0) {
+				
+				addOneRoll();
+
+				if(getCurRollCount() < getCurRollTotal()) {
 					startRollTween();
 				}
+				else {
+					if(spinnerTween != null) {
+						TWEEN.remove(spinnerTween);
+					}
+
+					spinnerTween = new TWEEN.Tween(segmentGroup.rotation).delay(1000)
+						.to({ x: "-" + (2*9999*Math.PI)}, 9999*5000)
+						.repeat(Infinity)
+						.start()
+				}
+
+				updateRollCount();
 
 				let rollResult = choices[getHighlightedSegmentIndex()];
 
@@ -621,9 +888,7 @@
 
 					let message = rollResultsCount.get(rollResult) + "x " + rollResult;
 
-					let resultsBox = createTextStroked(message, 20, 2, 2, 1, 0x900000, 0x000000);
-					resultsBox.receiveShadow = false;
-					resultsBox.castShadow = false;
+					let resultsBox = createTextStroked(message, 18, 2, 2, 1, 0x900000, 0x000000);
 
 					let prevBox = rollResultsTextMesh.get(rollResult);
 
@@ -641,9 +906,7 @@
 					resultsBox.traverse(enableBloom);
 				}
 				else {
-					let resultsBox = createTextStroked(rollResult, 20, 2, 2, 1, 0x900000, 0x000000);
-					resultsBox.receiveShadow = false;
-					resultsBox.castShadow = false;
+					let resultsBox = createTextStroked(rollResult, 18, 2, 2, 1, 0x900000, 0x000000);
 
 					resultsBox.rotateY(-Math.PI/8);
 					resultsBox.position.x = 30;
@@ -653,8 +916,11 @@
 					if(rewardsYPositions.has(index)) {
 						index = rewardsYPositions.get(index);
 					}
+					else {
+						index += 1;
+					}
 	
-					resultsBox.position.y = 135 - index * 32;
+					resultsBox.position.y = 120 - index * 30;
 					resultsBox.position.z = 50;
 
 					rollResultsCount.set(rollResult, 1);
@@ -668,20 +934,10 @@
 
 				scene.add(rollResultsGroup);
 
-				if(rollsLeft == 0) {
-					for (let [key, value] of rollResultsTextMesh) {
-						value.traverse(addFadeTween);
-					}
 
-					let resultsText = document.querySelector("#rollResults");
 
-					let resultsMessages = [];
-
-					for (let [key, value] of rollResultsCount) {
-						resultsMessages.push(value + "x " + key);
-					}
-
-					resultsText.value = resultsMessages.join(', ') + "\n\n" + resultsText.value;
+				if(getCurRollCount() >= getCurRollTotal()) {
+					finishCurRoll();
 				}
 			}
 
@@ -697,7 +953,24 @@
 				return Math.floor(index);
 			}
 
+			function addToQueue( ) {
+				let name = document.querySelector("#nameBox").value
+				let rollCount = document.querySelector("#roll_count").value
+
+				queueRoll(name, parseInt(rollCount))
+
+				updateRollCount();
+			}
+
 			function createScene( ) {
+				if(spinnerTween != null) {
+					TWEEN.remove(spinnerTween);
+				}
+
+				spinnerTween = new TWEEN.Tween(segmentGroup.rotation)
+						.to({ x: "-" + (2*9999*Math.PI)}, 9999*5000)
+						.repeat(Infinity)
+						.start()
 
 				// GROUND
 				const planeMaterial = new THREE.MeshPhongMaterial( { color: 0x0000ff /*0xffb851*/ } );
@@ -740,26 +1013,6 @@
 			finalComposer = new EffectComposer( renderer );
 			finalComposer.addPass( renderScene );
 			finalComposer.addPass( finalPass );
-
-				const cubes1 = new THREE.Mesh( new THREE.BoxGeometry( 1500, 220, 150 ), planeMaterial );
-
-				cubes1.position.y = FLOOR - 50;
-				cubes1.position.z = 20;
-
-				cubes1.castShadow = true;
-				cubes1.receiveShadow = true;
-
-				// scene.add( cubes1 );
-
-				const cubes2 = new THREE.Mesh( new THREE.BoxGeometry( 1600, 170, 250 ), planeMaterial );
-
-				cubes2.position.y = FLOOR - 50;
-				cubes2.position.z = 20;
-
-				cubes2.castShadow = true;
-				cubes2.receiveShadow = true;
-
-				// scene.add( cubes2 );
 			}
 
 			function animate() {
@@ -768,12 +1021,30 @@
 				render();
 			}
 
+			function hasCurRoll() {
+				if(rollTotalCounts.size > 0) {
+					return true;
+				}
+
+				return false;
+			}
+
 			function render() {
 
 				const delta = clock.getDelta();
 
-				if(rollsLeft <= 0) {
-					segmentGroup.rotateX(-1.0 * delta);
+				updateRollQueueDisplay();
+
+				if(!is_rolling || (getCurRollCount() >= getCurRollTotal())) {
+					let timeFromLastRoll = 999999;
+					
+					if(lastRollTime != null) { 
+						timeFromLastRoll = ((new Date()).getTime() - lastRollTime);
+					}
+					
+					if((hasCurRoll()) && (timeFromLastRoll > 3000)) {
+						roll_wheel();
+					}
 				}
 
 				let index = getHighlightedSegmentIndex();
