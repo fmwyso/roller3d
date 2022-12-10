@@ -63,6 +63,34 @@
 		.twitchIntegrationDiv {
 			text-align: center;
 		}
+		.rollQueueStartStop {
+			text-align: center;
+		}
+		a:link {
+			color: white;
+			background-color: transparent;
+			text-decoration: underline;
+			font-style: italic;
+		}
+
+		a:visited {
+			color: white;
+			background-color: transparent;
+			text-decoration: underline;
+			font-style: italic;
+		}
+
+		a:hover {
+			color: lightblue;
+			background-color: transparent;
+			text-decoration: underline;
+		}
+
+		a:active {
+			color: white;
+			background-color: transparent;
+			text-decoration: underline;
+		}
 	</style>
 
 	<head>
@@ -101,14 +129,18 @@
 					<textarea id="rollQueueDisplay" name="rollQueueDisplay" rows="12" cols="50" readonly></textarea>
 				</div>
 
+				<div class="rollQueueStartStop">
+					<button type="button" id="btnToggleQueue">START roll queue</button>
+				</div>
+
+				<div class="twitchIntegrationDiv" id="twitchIntegrationDiv">
+					<a href="https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=https://fmwyso.github.io/roller3d/main.html&scope=channel:read:subscriptions"><img src="./connect_with_twitch.png"></img><br />Connect Twitch account for new subs to be automatically queued!</a>
+				</div>
+
 				<div class="rollResultsDiv">
 					<label for="rollResults">Roll Results</label>
 					<br />
 					<textarea id="rollResults" name="rollResults" rows="12" cols="50" readonly></textarea>
-				</div>
-
-				<div class="twitchIntegrationDiv">
-					<a href="https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=https://fmwyso.github.io/roller3d/main.html&scope=channel:read:subscriptions">Click here to sign in through Twitch</a>
 				</div>
 
 				<div class="rollDiv" style="text-align: center">
@@ -356,6 +388,8 @@
 			let nameTextMesh;
 			let rollCountMesh;
 
+			let is_queue_active = false;
+
 			let rewardsYPositions = new Map([
 				[0, 4],
 				[1, 5],
@@ -460,6 +494,8 @@
 					.then(resp => resp.json())
 					.then(resp => {
 						let channel_id = resp["data"][0]["id"];
+						console.log("Done");
+						document.getElementById("twitchIntegrationDiv").innerHTML = "<p>Automatically queueing any subs to " + resp["data"][0]["display_name"] + "</p>";
 						
 						connect(channel_id, access_token);
 					})
@@ -689,6 +725,18 @@
 				return mesh;
 			}
 
+			document.querySelector('#btnToggleQueue').addEventListener('click', toggleQueue)
+			function toggleQueue() {
+				is_queue_active = !is_queue_active;
+
+				if(is_queue_active) {
+					document.querySelector("#btnToggleQueue").innerHTML = "STOP roll queue";
+				}
+				else {
+					document.querySelector("#btnToggleQueue").innerHTML = "START roll queue";
+				}
+			}
+
 			document.querySelector('#updateChoicesButton').addEventListener('click', updateChoices)
 			function updateChoices() {
 				for(let i = 0; i < segments.length; ++i) { 
@@ -721,19 +769,21 @@
 			document.querySelector('#roll_btn').addEventListener('click', addToQueue)
 
 			function updateRollCount() {
-				scene.remove(rollCountMesh);
+				if(is_rolling) {
+					scene.remove(rollCountMesh);
 
-				if(getCurRollCount() < getCurRollTotal()) {
-					rollCountMesh = createTextStroked((getCurRollCount()+1).toString() + " of " + getCurRollTotal().toString(), 20, 2, 1, 1, 0xcccccc, 0x000000);
+					if(getCurRollCount() < getCurRollTotal()) {
+						rollCountMesh = createTextStroked((getCurRollCount()+1).toString() + " of " + getCurRollTotal().toString(), 20, 2, 1, 1, 0xcccccc, 0x000000);
 
-					rollCountMesh.rotateY(-Math.PI/8);
-					rollCountMesh.geometry.computeBoundingBox();
-					let rollCount_width = rollCountMesh.geometry.boundingBox.max.x - rollCountMesh.geometry.boundingBox.min.x;
-					rollCountMesh.position.x = (-0.5 * rollCount_width) - 70;
-					rollCountMesh.position.y = -135;
-					rollCountMesh.position.z = 50;
+						rollCountMesh.rotateY(-Math.PI/8);
+						rollCountMesh.geometry.computeBoundingBox();
+						let rollCount_width = rollCountMesh.geometry.boundingBox.max.x - rollCountMesh.geometry.boundingBox.min.x;
+						rollCountMesh.position.x = (-0.5 * rollCount_width) - 70;
+						rollCountMesh.position.y = -135;
+						rollCountMesh.position.z = 50;
 
-					scene.add(rollCountMesh);
+						scene.add(rollCountMesh);
+					}
 				}
 			}
 
@@ -1037,15 +1087,17 @@
 
 				updateRollQueueDisplay();
 
-				if(!is_rolling || (getCurRollCount() >= getCurRollTotal())) {
-					let timeFromLastRoll = 999999;
-					
-					if(lastRollTime != null) { 
-						timeFromLastRoll = ((new Date()).getTime() - lastRollTime);
-					}
-					
-					if((hasCurRoll()) && (timeFromLastRoll > 3000)) {
-						roll_wheel();
+				if(is_queue_active) {
+					if(!is_rolling || (getCurRollCount() >= getCurRollTotal())) {
+						let timeFromLastRoll = 999999;
+						
+						if(lastRollTime != null) { 
+							timeFromLastRoll = ((new Date()).getTime() - lastRollTime);
+						}
+						
+						if((hasCurRoll()) && (timeFromLastRoll > 3000)) {
+							roll_wheel();
+						}
 					}
 				}
 
