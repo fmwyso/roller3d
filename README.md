@@ -14,3 +14,5 @@ I want to thank the following authors/pages for their examples & code snippets t
 <a href="https://stackoverflow.com/questions/29884485/threejs-canvas-size-based-on-container">gman's stackoverflow reply on resizing canvas</a>
 <br />
 <a href="https://discourse.threejs.org/t/load-font-into-global-variable-efficiency/31608/2">hofk's reply on font loading for threejs</a>
+<br />
+<a href="https://github.com/twitchdev/pubsub-javascript-sample/blob/main/main.js">Twitch's PubSub Javascript Sample</a>
