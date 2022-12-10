@@ -16,3 +16,5 @@ I want to thank the following authors/pages for their examples & code snippets t
 <a href="https://discourse.threejs.org/t/load-font-into-global-variable-efficiency/31608/2">hofk's reply on font loading for threejs</a>
 <br />
 <a href="https://github.com/twitchdev/pubsub-javascript-sample/blob/main/main.js">Twitch's PubSub Javascript Sample</a>
+<br />
+<a href="https://barrycarlyon.github.io/twitch_misc/authentication/implicit_auth/">Barry Carlyon's implicit twitch example</a>
