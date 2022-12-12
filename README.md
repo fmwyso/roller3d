@@ -14,7 +14,7 @@ How to use the page:
   - If you give out 5 gift subs anonymously, each of the 5 people you gave a sub get a roll. 
   - If you give out a 6 month gift sub to someone else, you get the 6 rolls for yourself. 
 5) Before starting any rolls, edit the list of choices ("Possible Choices") to what you want; a new choice on each line. After you are done, click "Update Choices". You should now see your choices on the roller. 
-6) To start rolling, click on "START roll queue". This will automatically roll for all users in the queue; giving a ~1 second break between users. To stop rolling, click the same button (which is now labeled "STOP roll queue"). 
+6) To start rolling, click on "START roll queue". This will automatically roll for all viewers in the queue (one viewer at a time); giving a ~1 second break between viewers. To stop rolling, click the same button (which is now labeled "STOP roll queue"). 
 7) All results will be stored in the "Roll Results" window.
 8) If you want to add rolls manually, just edit the "Name" and "Roll Count" at the top. After clicking "Add to Roll Queue", it will add those number of rolls for the given name. Note that you cannot reduce the roll count for any person; you can only add more rolls or new rolls. 
 <br />
