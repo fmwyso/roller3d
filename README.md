@@ -5,7 +5,7 @@ For a quick start guide, <a href="https://www.youtube.com/watch?v=eabQi0bLK0M">w
 How to use the page:
 1) You go to https://fmwyso.github.io/roller3d/
 2) Click on "Connect with Twitch". Login if needed. Note that you shouldn't have to re-login every time you re-open it. 
-3) Page should refresh and now say, "Automatically queueing any subs to <your_name>". !! At this point, your access token is visible in the URL. Do not let anyone see this !!
+3) Page should refresh and now say, "Automatically queueing subs/bits to <your_name>". !! At this point, your access token is visible in the URL. Do not let anyone see this !!
 4) Now people will automatically be added to the roll queue.
  - Every bit message will get (bit_count/250) rolls. For example, a cheer of 250 gets 1 roll. A cheer of 249 doesn't get added to the queue. A cheer of 500 gets 2 rolls. Two cheers of 200 each (a total of 400) gets 0 rolls; nothing added to queue because each roll is less than 250. 
  - Every sub gets 1 roll per month. Multi-month subs / gift subs get 1 roll per month. For example, 6 month gift subs get 6 rolls.
