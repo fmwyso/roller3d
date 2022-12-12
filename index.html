@@ -134,7 +134,7 @@
 				</div>
 
 				<div class="twitchIntegrationDiv" id="twitchIntegrationDiv">
-					<a href="https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=https://fmwyso.github.io/roller3d/&scope=channel:read:subscriptions+bits:read"><img src="./connect_with_twitch.png"></img><br />Connect Twitch account for new subs to be automatically queued!</a>
+					<a href="https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=https://fmwyso.github.io/roller3d/&scope=channel:read:subscriptions+bits:read"><img src="./connect_with_twitch.png"></img><br />Connect Twitch account for new subs to be automatically queued! WARNING: !! DO NOT SHOW ANYONE YOUR BROWSER'S URL WHEN CONNECTING WITH TWITCH !! It contains an access token enabling people to find info about your account. If you accidentally leak it, go to https://www.twitch.tv/settings/connections and disconnect "Roller3D". </a>
 				</div>
 
 				<div class="rollResultsDiv">
@@ -144,10 +144,9 @@
 				</div>
 
 				<div class="rollDiv" style="text-align: center">
+					<a href="https://github.com/fmwyso/roller3d">Click here for steps on how to use this page</a>
 					<p>
 						Written by fmwyso; feel free to send any comments, questions or suggestions to me on Discord (fmwyso#3492). For the time being, only Chrome is supported. FireFox seems to be buggy for some reason... 
-
-						<a href="https://github.com/fmwyso/roller3d">Click here for steps on how to use this page</a>
 
 						<br />
 						This page heavily uses <a href="https://threejs.org/">threejs</a> and <a href="https://createjs.com/tweenjs">tweenjs</a>. 
@@ -542,7 +541,7 @@
 					.then(resp => {
 						let channel_id = resp["data"][0]["id"];
 
-						document.getElementById("twitchIntegrationDiv").innerHTML = "<p>Automatically queueing any subs to " + resp["data"][0]["display_name"] + "</p>";
+						document.getElementById("twitchIntegrationDiv").innerHTML = "<p>Automatically queueing any subs to " + resp["data"][0]["display_name"] + ". If you accidentally leaked your access token (visible in URL), go to https://www.twitch.tv/settings/connections and disconnect \"Roller3D\".</p>";
 						
 						connect(channel_id, access_token);
 					})
