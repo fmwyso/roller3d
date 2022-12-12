@@ -277,8 +277,6 @@
 
 						var twitch_message = JSON.parse(top_level_message.data.message);
 
-						console.log("twitch_message", twitch_message);
-
 						if (topic.startsWith("channel-points-channel-v1")) {
 							var name = twitch_message.data.redemption.user.display_name;
 							var count = twitch_message.data.redemption.reward.cost;
@@ -541,7 +539,6 @@
 					.then(resp => resp.json())
 					.then(resp => {
 						let channel_id = resp["data"][0]["id"];
-						console.log(resp["data"][0]);
 
 						document.getElementById("twitchIntegrationDiv").innerHTML = "<p>Automatically queueing any subs to " + resp["data"][0]["display_name"] + "</p>";
 						
