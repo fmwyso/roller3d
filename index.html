@@ -541,7 +541,7 @@
 					.then(resp => {
 						let channel_id = resp["data"][0]["id"];
 
-						document.getElementById("twitchIntegrationDiv").innerHTML = "<p>Automatically queueing any subs to " + resp["data"][0]["display_name"] + ". If you accidentally leaked your access token (visible in URL), go to https://www.twitch.tv/settings/connections and disconnect \"Roller3D\".</p>";
+						document.getElementById("twitchIntegrationDiv").innerHTML = "<p>Automatically queueing subs/bits to " + resp["data"][0]["display_name"] + ". If you accidentally leaked your access token (visible in URL), go to https://www.twitch.tv/settings/connections and disconnect \"Roller3D\".</p>";
 						
 						connect(channel_id, access_token);
 					})
