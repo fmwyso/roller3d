@@ -69,6 +69,9 @@
 		.sheetLogDiv {
 			text-align: center;
 		}
+		.bitsPerRollDiv{
+			text-align: center;
+		}
 		a:link {
 			color: white;
 			background-color: transparent;
@@ -137,7 +140,7 @@
 				</div>
 
 				<div class="twitchIntegrationDiv" id="twitchIntegrationDiv">
-					<a href="https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=https://fmwyso.github.io/roller3d/&scope=channel:read:subscriptions+bits:read"><img src="./connect_with_twitch.png"></img><br />Connect Twitch account for new subs to be automatically queued! WARNING: !! DO NOT SHOW ANYONE YOUR BROWSER'S URL WHEN CONNECTING WITH TWITCH !! It contains an access token enabling people to find info about your account. If you accidentally leak it, go to https://www.twitch.tv/settings/connections and disconnect "Roller3D". </a>
+					<a id="connectWitchTwitch"><img src="./connect_with_twitch.png"></img><br />Connect Twitch account for new subs to be automatically queued! WARNING: !! DO NOT SHOW ANYONE YOUR BROWSER'S URL WHEN CONNECTING WITH TWITCH !! It contains an access token enabling people to find info about your account. If you accidentally leak it, go to https://www.twitch.tv/settings/connections and disconnect "Roller3D". </a>
 				</div>
 
 				<div class="rollResultsDiv">
@@ -151,6 +154,11 @@
 					<input type="password" name="sheetdb_api_url" id="sheetdb_api_url"></input>
 					<br />
 					<p>Enter a valid sheetdb API url (with fields "time_stamp", "name", "roll_count", "rewards"). Once a users' rolls are completed, a new row will be added with the roll results.</p>
+				</div>
+
+				<div class="bitsPerRollDiv">
+					<label for="bitsPerRoll">Enter amount of bits per roll</label>
+					<input type="number" name="bitsPerRoll" id="bitsPerRoll" min=1 value=250></input>
 				</div>
 
 				<div class="rollDiv" style="text-align: center">
@@ -223,6 +231,10 @@
 		<script type="module">
 
 			var access_token = null;
+
+			var base_url = location.protocol + '//' + location.host + location.pathname;
+
+			document.querySelector("#connectWitchTwitch").href = "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=" + base_url + "&scope=channel:read:subscriptions+bits:read";
 
 			// From https://github.com/sheetdb/sheetdb-js/blob/master/src/write.js
 			function write(url, data, options) {
@@ -326,7 +338,8 @@
 						else if(topic.startsWith("channel-bits-events-v2")) {
 							if(twitch_message.data.is_anonymous == false) {
 								var user_id = twitch_message.data.user_id;
-								var count = Math.floor(twitch_message.data.bits_used / 250);
+								var bits_per_roll = parseInt(document.querySelector("#bitsPerRoll").value);
+								var count = Math.floor(twitch_message.data.bits_used / bits_per_roll);
 
 								if(count > 0) {
 									fetch(
@@ -870,6 +883,32 @@
 				}
 			}
 
+			function getTimeStampString() {
+				let curDateTime = new Date();
+
+				let year  = curDateTime.getFullYear().toString().padStart(4, '0');;
+				let day   = curDateTime.getDay().toString().padStart(2, '0');;
+				let month = curDateTime.getMonth().toString().padStart(2, '0');;
+
+				let hour   = curDateTime.getHours();
+				let am_pm  = "AM";
+
+				if(hour >= 12){
+					am_pm = "PM";
+
+					if(hour > 12) {
+						hour -= 12;
+					}
+				}
+
+				hour = hour.toString().padStart(2, '0');
+
+				let minute = curDateTime.getMinutes().toString().padStart(2, '0');
+				let second = curDateTime.getSeconds().toString().padStart(2, '0');
+
+				return day + "/" + month + "/" + year + " " + hour + ":" + minute + ":" + second + " " + am_pm;
+			}
+
 			function finishCurRoll() {
 
 				is_rolling = false;
@@ -892,16 +931,16 @@
 						resultsMessages.push(value + "x " + key);
 					}
 
-					resultsText.value = getCurRollName() + ": " + resultsMessages.join(', ') + "\n" + resultsText.value;
+					resultsText.value = "[" + getTimeStampString() + "]" + getCurRollName() + ": " + resultsMessages.join(', ') + "\n" + resultsText.value;
 
-					let timeStamp = new Date().toLocaleString();
+					let timeStamp = getTimeStampString();
 
 					let rollCount = getCurRollCount();
 
 					let api_url = document.querySelector('#sheetdb_api_url').value;
 
 					if(api_url != "") {
-						write(api_url, { data: {time_stamp: timeStamp, name: cur_name, roll_count: rollCount, rewards: resultsMessages.join(', ') } }).then(function(result){
+						write(api_url, { data: {time_stamp: " " + timeStamp, name: cur_name, roll_count: rollCount, rewards: resultsMessages.join(', ') } }).then(function(result){
 							resultsText.value = timeStamp + ": Logged " + rollCount +  " roll(s) for " + cur_name + "\n" + resultsText.value;
 						}, function(error){
 							resultsText.value = timeStamp + ": FAILED logging " + rollCount + " rolls for " + cur_name + "\n" + resultsText.value;
