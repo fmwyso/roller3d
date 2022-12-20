@@ -18,7 +18,7 @@ How to use the page:
 7) All results will be stored in the "Roll Results" window.
 8) If you want to add rolls manually, just edit the "Name" and "Roll Count" at the top. After clicking "Add to Roll Queue", it will add those number of rolls for the given name. Note that you cannot reduce the roll count for any person; you can only add more rolls or new rolls. 
 <br />
-This page heavily uses <a href="https://threejs.org/">threejs</a> and <a href="https://createjs.com/tweenjs">tweenjs</a>. 
+This page was made possible by the following libraries: <a href="https://docs.sheetdb.io/">sheetdb</a>, <a href="https://threejs.org/">threejs</a> and <a href="https://createjs.com/tweenjs">tweenjs</a>. 
 I want to thank the following authors/pages for their examples & code snippets that made this development possible:
 <br />
 <a href="https://threejs.org/examples/?q=bloom#webgl_postprocessing_unreal_bloom_selective">Temdog007's threejs example</a>
@@ -34,3 +34,5 @@ I want to thank the following authors/pages for their examples & code snippets t
 <a href="https://github.com/twitchdev/pubsub-javascript-sample/blob/main/main.js">Twitch's PubSub Javascript Sample</a>
 <br />
 <a href="https://barrycarlyon.github.io/twitch_misc/authentication/implicit_auth/">Barry Carlyon's implicit twitch example</a>
+<br />
+<a href="https://github.com/sheetdb/sheetdb-js">Sheetdb's javascript library (used as an example)</a>

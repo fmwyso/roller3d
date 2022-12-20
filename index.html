@@ -66,6 +66,9 @@
 		.rollQueueStartStop {
 			text-align: center;
 		}
+		.sheetLogDiv {
+			text-align: center;
+		}
 		a:link {
 			color: white;
 			background-color: transparent;
@@ -143,13 +146,20 @@
 					<textarea id="rollResults" name="rollResults" rows="12" cols="50" readonly></textarea>
 				</div>
 
+				<div class="sheetLogDiv">
+					<label for="sheetLogText">Enter sheetdb API URL</label>
+					<input type="password" name="sheetdb_api_url" id="sheetdb_api_url"></input>
+					<br />
+					<p>Enter a valid sheetdb API url (with fields "time_stamp", "name", "roll_count", "rewards"). Once a users' rolls are completed, a new row will be added with the roll results.</p>
+				</div>
+
 				<div class="rollDiv" style="text-align: center">
 					<a href="https://github.com/fmwyso/roller3d">Click here for steps on how to use this page</a>
 					<p>
 						Written by fmwyso; feel free to send any comments, questions or suggestions to me on Discord (fmwyso#3492). For the time being, only Chrome is supported. FireFox seems to be buggy for some reason... 
 
 						<br />
-						This page heavily uses <a href="https://threejs.org/">threejs</a> and <a href="https://createjs.com/tweenjs">tweenjs</a>. 
+						This page was made possible by the following libraries: <a href="https://docs.sheetdb.io/">sheetdb</a>, <a href="https://threejs.org/">threejs</a> and <a href="https://createjs.com/tweenjs">tweenjs</a>. 
 						I want to thank the following authors/pages for their examples & code snippets that made this development possible.
 
 						<br />
@@ -166,6 +176,8 @@
 						<a href="https://github.com/twitchdev/pubsub-javascript-sample/blob/main/main.js">Twitch's PubSub Javascript Sample</a>
 						<br />
 						<a href="https://barrycarlyon.github.io/twitch_misc/authentication/implicit_auth/">Barry Carlyon's implicit twitch example</a>
+						<br />
+						<a href="https://github.com/sheetdb/sheetdb-js">Sheetdb's javascript library (used as an example)</a>
 					</p>
 				</div>
 			</div>
@@ -209,6 +221,33 @@
 		</script>
 		
 		<script type="module">
+
+			var access_token = null;
+
+			// From https://github.com/sheetdb/sheetdb-js/blob/master/src/write.js
+			function write(url, data, options) {
+			return new Promise(function (resolve, reject) {
+				var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
+				xhr.open("POST", url, true);
+				xhr.onload = function () {
+				if (this.status >= 200 && this.status < 300) {
+					resolve(JSON.parse(xhr.responseText));
+				} else {
+					reject({
+					status: this.status,
+					statusText: xhr.statusText
+					});
+				}
+				};
+
+				xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+				xhr.onerror = function (e) {
+				reject(e);
+				};
+
+				xhr.send(JSON.stringify(data));
+			});
+			}
 
 			var ws;
 			var readyToSend = false;
@@ -290,10 +329,6 @@
 								var count = Math.floor(twitch_message.data.bits_used / 250);
 
 								if(count > 0) {
-									const urlParams = new URLSearchParams(window.location.hash.substring(1));
-
-									var access_token = urlParams.get("access_token");
-
 									fetch(
 										'https://api.twitch.tv/helix/users?id=' + user_id,
 										{
@@ -526,7 +561,7 @@
 				const urlParams = new URLSearchParams(window.location.hash.substring(1));
 				
 				if(urlParams.has("access_token")) {
-					var access_token = urlParams.get('access_token');
+					access_token = urlParams.get('access_token');
 
 					fetch(
 						'https://api.twitch.tv/helix/users',
@@ -541,9 +576,11 @@
 					.then(resp => {
 						let channel_id = resp["data"][0]["id"];
 
-						document.getElementById("twitchIntegrationDiv").innerHTML = "<p>Automatically queueing subs/bits to " + resp["data"][0]["display_name"] + ". If you accidentally leaked your access token (visible in URL), go to https://www.twitch.tv/settings/connections and disconnect \"Roller3D\".</p>";
+						document.getElementById("twitchIntegrationDiv").innerHTML = "<p>Automatically queueing subs/bits to " + resp["data"][0]["display_name"] + ". If you accidentally leaked your access token (visible in URL for a split-second on page load), go to https://www.twitch.tv/settings/connections and disconnect \"Roller3D\".</p>";
 						
 						connect(channel_id, access_token);
+
+						window.history.replaceState(null, null, "/");
 					})
 					.catch(err => {
 						console.log(err);
@@ -856,6 +893,20 @@
 					}
 
 					resultsText.value = getCurRollName() + ": " + resultsMessages.join(', ') + "\n" + resultsText.value;
+
+					let timeStamp = new Date().toLocaleString();
+
+					let rollCount = getCurRollCount();
+
+					let api_url = document.querySelector('#sheetdb_api_url').value;
+
+					if(api_url != "") {
+						write(api_url, { data: {time_stamp: timeStamp, name: cur_name, roll_count: rollCount, rewards: resultsMessages.join(', ') } }).then(function(result){
+							resultsText.value = timeStamp + ": Logged " + rollCount +  " roll(s) for " + cur_name + "\n" + resultsText.value;
+						}, function(error){
+							resultsText.value = timeStamp + ": FAILED logging " + rollCount + " rolls for " + cur_name + "\n" + resultsText.value;
+						});
+					}
 
 					lastRollTime = new Date();
 
