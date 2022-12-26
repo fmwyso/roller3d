@@ -939,6 +939,26 @@
 
 					lastRollTime = new Date();
 
+					let api_url = document.querySelector('#sheetdb_api_url').value;
+
+					if(api_url != "") {
+
+						let to_write = []
+
+						for (let [key, value] of rollResultsCount) {
+							for(let i = 0; i < parseInt(value); ++i) {
+								to_write.push({time_stamp: " " + timeStamp, name: cur_name, roll_count: "1", rewards: key });
+							}
+							resultsMessages.push(key);
+						}
+
+						write(api_url, {data: to_write}).then(function(result){
+							resultsText.value = timeStamp + ": Logged " + rollCount + " roll(s) for " + cur_name + "\n" + resultsText.value;
+						}, function(error){
+							resultsText.value = timeStamp + ": FAILED logging " + rollCount + " roll(s) for " + cur_name + "\n" + resultsText.value;
+						});
+					}
+
 					rollTotalCounts.delete(cur_name);
 					rollCurSpinCounts.delete(cur_name);
 				}
@@ -1108,27 +1128,9 @@
 					rollResultsGroup.add(resultsBox);
 				}
 
-				let api_url = document.querySelector('#sheetdb_api_url').value;
-
-				if(api_url != "") {
-					let cur_name = getCurRollName();
-
-					let timeStamp = getTimeStampString();
-
-					let resultsText = document.querySelector("#rollResults");
-
-					write(api_url, { data: {time_stamp: " " + timeStamp, name: cur_name, roll_count: "1", rewards: rollResult } }).then(function(result){
-						resultsText.value = timeStamp + ": Logged " + rollResult + " for " + cur_name + "\n" + resultsText.value;
-					}, function(error){
-						resultsText.value = timeStamp + ": FAILED logging " + rollResult + " for " + cur_name + "\n" + resultsText.value;
-					});
-				}
-
 				scene.remove(rollResultsGroup);
 
 				scene.add(rollResultsGroup);
-
-
 
 				if(getCurRollCount() >= getCurRollTotal()) {
 					finishCurRoll();
