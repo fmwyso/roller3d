@@ -937,16 +937,6 @@
 
 					let rollCount = getCurRollCount();
 
-					let api_url = document.querySelector('#sheetdb_api_url').value;
-
-					if(api_url != "") {
-						write(api_url, { data: {time_stamp: " " + timeStamp, name: cur_name, roll_count: rollCount, rewards: resultsMessages.join(', ') } }).then(function(result){
-							resultsText.value = timeStamp + ": Logged " + rollCount +  " roll(s) for " + cur_name + "\n" + resultsText.value;
-						}, function(error){
-							resultsText.value = timeStamp + ": FAILED logging " + rollCount + " rolls for " + cur_name + "\n" + resultsText.value;
-						});
-					}
-
 					lastRollTime = new Date();
 
 					rollTotalCounts.delete(cur_name);
@@ -1116,6 +1106,22 @@
 
 					resultsBox.traverse(enableBloom);
 					rollResultsGroup.add(resultsBox);
+				}
+
+				let api_url = document.querySelector('#sheetdb_api_url').value;
+
+				if(api_url != "") {
+					let cur_name = getCurRollName();
+
+					let timeStamp = getTimeStampString();
+
+					let resultsText = document.querySelector("#rollResults");
+
+					write(api_url, { data: {time_stamp: " " + timeStamp, name: cur_name, roll_count: "1", rewards: rollResult } }).then(function(result){
+						resultsText.value = timeStamp + ": Logged " + rollResult + " for " + cur_name + "\n" + resultsText.value;
+					}, function(error){
+						resultsText.value = timeStamp + ": FAILED logging " + rollResult + " for " + cur_name + "\n" + resultsText.value;
+					});
 				}
 
 				scene.remove(rollResultsGroup);
