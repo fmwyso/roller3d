@@ -886,9 +886,9 @@
 			function getTimeStampString() {
 				let curDateTime = new Date();
 
-				let year  = curDateTime.getFullYear().toString().padStart(4, '0');;
-				let day   = curDateTime.getDay().toString().padStart(2, '0');;
-				let month = curDateTime.getMonth().toString().padStart(2, '0');;
+				let year  = curDateTime.getFullYear().toString().padStart(4, '0');
+				let day   = curDateTime.getDate().toString().padStart(2, '0');
+				let month = (curDateTime.getMonth() + 1).toString().padStart(2, '0');
 
 				let hour   = curDateTime.getHours();
 				let am_pm  = "AM";
