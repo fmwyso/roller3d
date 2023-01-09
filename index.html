@@ -14,8 +14,6 @@
 		box-sizing: inherit;
 		}
 		body { margin: 0; }
-		.outer {
-		}
 		.frame { 
 		display: flex;
 		height: 100vh;
@@ -63,6 +61,12 @@
 		.twitchIntegrationDiv {
 			text-align: center;
 		}
+		.googleIntegrationDiv {
+			text-align: center;
+		}
+		.connectWithGoogle {
+			cursor: pointer;
+		}
 		.rollQueueStartStop {
 			text-align: center;
 		}
@@ -103,7 +107,8 @@
 		<title>Roller3D by fmwyso</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-		<link type="text/css" rel="stylesheet" href="main.css">
+		<script src="https://accounts.google.com/gsi/client" onload="gisInit()" async defer></script>
+		<script src="https://apis.google.com/js/api.js" onload="gapiLoad()" async defer></script>
 	</head>
 
 	<body>
@@ -140,7 +145,7 @@
 				</div>
 
 				<div class="twitchIntegrationDiv" id="twitchIntegrationDiv">
-					<a id="connectWitchTwitch"><img src="./connect_with_twitch.png"></img><br />Connect Twitch account for new subs to be automatically queued! WARNING: !! DO NOT SHOW ANYONE YOUR BROWSER'S URL WHEN CONNECTING WITH TWITCH !! It contains an access token enabling people to find info about your account. If you accidentally leak it, go to https://www.twitch.tv/settings/connections and disconnect "Roller3D". </a>
+					<a id="connectWithTwitch"><img src="./connect_with_twitch.png"></img><br />Connect Twitch account for new subs to be automatically queued! WARNING: !! DO NOT SHOW ANYONE YOUR BROWSER'S URL WHEN CONNECTING WITH TWITCH !! It contains an access token enabling people to find info about your account. If you accidentally leak it, go to https://www.twitch.tv/settings/connections and disconnect "Roller3D". </a>
 				</div>
 
 				<div class="rollResultsDiv">
@@ -156,6 +161,11 @@
 					<p>Enter a valid sheetdb API url (with fields "time_stamp", "name", "roll_count", "rewards"). Once a users' rolls are completed, a new row will be added with the roll results.</p>
 				</div>
 
+				<div class="googleIntegrationDiv">
+					<a class="connectWithGoogle" id="connectWithGoogle" onclick="get_token()"><img src="./connect_with_google.png" ></img></a>
+					<p class="googleInfo" id="googleInfo">Connect with Google to create a new spreadshot logging all subs and diagnostic information.</p>
+				</div>
+
 				<div class="bitsPerRollDiv">
 					<label for="bitsPerRoll">Enter amount of bits per roll</label>
 					<input type="number" name="bitsPerRoll" id="bitsPerRoll" min=1 value=250></input>
@@ -167,7 +177,7 @@
 						Written by fmwyso; feel free to send any comments, questions or suggestions to me on Discord (fmwyso#3492). For the time being, only Chrome is supported. FireFox seems to be buggy for some reason... 
 
 						<br />
-						This page was made possible by the following libraries: <a href="https://docs.sheetdb.io/">sheetdb</a>, <a href="https://threejs.org/">threejs</a> and <a href="https://createjs.com/tweenjs">tweenjs</a>. 
+						This page was made possible by the following libraries: <a href="https://developers.google.com/sheets/api/guides/concepts">Google Sheets API</a>, <a href="https://docs.sheetdb.io/">sheetdb</a>, <a href="https://threejs.org/">threejs</a> and <a href="https://createjs.com/tweenjs">tweenjs</a>. 
 						I want to thank the following authors/pages for their examples & code snippets that made this development possible.
 
 						<br />
@@ -186,6 +196,12 @@
 						<a href="https://barrycarlyon.github.io/twitch_misc/authentication/implicit_auth/">Barry Carlyon's implicit twitch example</a>
 						<br />
 						<a href="https://github.com/sheetdb/sheetdb-js">Sheetdb's javascript library (used as an example)</a>
+						<br />
+						<a href="https://dev.to/jessesbyers/create-a-google-sheet-and-write-data-using-the-google-sheets-api-1mac">Jesse Smith Byers' Google Sheets API example</a>
+						<br />
+						<a href="https://stackoverflow.com/a/70772647">Iamblichus' reply describing how to use GIS</a>
+						<br />
+						<a href="https://scriptverse.academy/tutorials/html5-window-postmessage.html">Dennis Gabil's examples of window.postMessage()</a>
 					</p>
 				</div>
 			</div>
@@ -227,14 +243,186 @@
 			}
 
 		</script>
+
+		<!-- Google Sheets & GIS Integration -->
+		<script>
+			var tokenClient;
+			var g_access_token = null;
+			var sheet_map = new Map();
+			var spreadsheetId = null;
+
+			function gapiStart() {
+					gapi.client.init({
+				}).then(function() {
+					gapi.client.load('sheets', 'v4');
+				}).then(function(response) {
+					gisInit();
+					console.log('discovery document loaded');
+				}, function(reason) {
+					console.log('Error: ' + reason.result.error.message);
+				});
+			}
+
+			function gapiLoad() {
+				gapi.load('client', gapiStart)
+			}
+
+			function gisInit() {
+				tokenClient = google.accounts.oauth2.initTokenClient({
+					client_id: '441029014764-tl4fr1os2p7hkdn5267jvp4k6f1v2cri.apps.googleusercontent.com',
+					scope: 'https://www.googleapis.com/auth/spreadsheets',
+					callback: (tokenResponse) => {
+					g_access_token = tokenResponse.access_token;
+					createSpreadsheet();
+					},
+				});
+			}
+
+			function get_token() {
+				tokenClient.requestAccessToken();
+			}
+
+			function getTimeStampString() {
+				let curDateTime = new Date();
+
+				let year  = curDateTime.getFullYear().toString().padStart(4, '0');
+				let day   = curDateTime.getDate().toString().padStart(2, '0');
+				let month = (curDateTime.getMonth() + 1).toString().padStart(2, '0');
+
+				let hour   = curDateTime.getHours();
+				let am_pm  = "AM";
+
+				if(hour >= 12){
+					am_pm = "PM";
+
+					if(hour > 12) {
+						hour -= 12;
+					}
+				}
+
+				hour = hour.toString().padStart(2, '0');
+
+				let minute = curDateTime.getMinutes().toString().padStart(2, '0');
+				let second = curDateTime.getSeconds().toString().padStart(2, '0');
+
+				return day + "/" + month + "/" + year + " " + hour + ":" + minute + ":" + second + " " + am_pm;
+			}
+
+			async function createSpreadsheet() { 
+				let title = "Roller3D Log (" + getTimeStampString() + ")"
+				var request = {
+					properties: {
+						title: title
+					},
+					sheets: [
+						{
+							properties: {
+								title: "Rolls",
+								gridProperties: {
+								columnCount: 4,
+								rowCount: 2, 
+								frozenRowCount: 1
+								},
+								tabColor: { 
+								red: 0.0,
+								green: 1.0,
+								blue: 0.0
+								},
+							},
+						},
+						{
+							properties: {
+								title: "Debug",
+								gridProperties: {
+								columnCount: 2,
+								rowCount: 2, 
+								frozenRowCount: 1
+								},
+								tabColor: { 
+								red: 0.0,
+								green: 0.0,
+								blue: 1.0
+								},
+							},
+						},           
+					],
+				};
+
+				var response = await window.gapi.client.sheets.spreadsheets.create(request);
+
+				console.log(response);
+
+				spreadsheetId = response.result.spreadsheetId;
+
+				for (let sheet_idx = 0; sheet_idx < response.result.sheets.length; sheet_idx++) {
+					sheet_map.set(response.result.sheets[sheet_idx].properties.title, response.result.sheets[sheet_idx].properties.sheetId);
+				}
+
+				writeHeaders(spreadsheetId, sheet_map.get("Rolls"), ["Rolled Timestamp", "Received Timestamp", "Name", "Reward"])
+				writeHeaders(spreadsheetId, sheet_map.get("Debug"), ["Timestamp", "Info"])
+
+				document.querySelector(".googleIntegrationDiv").innerHTML = "<a href='" + response.result.spreadsheetUrl + "' target='_blank'>Now logging to spreadsheet: '" + title + "'. Click here to open spreadsheet.</a>";
+			}
+
+			async function writeHeaders(spreadsheetId, sheetId, values) { 
+				let values_array = []
+
+				for(let value_idx = 0; value_idx < values.length; ++value_idx) {
+					values_array.push({userEnteredValue: {stringValue: values[value_idx]}})
+				}
+
+				var request = window.gapi.client.sheets.spreadsheets.batchUpdate({
+					spreadsheetId: spreadsheetId,
+					"resource": {
+						"requests": [
+							{
+								"updateCells": {
+
+									"rows": 
+										{
+											values: values_array
+										}
+									,
+									"fields": "*",
+									"range": {
+										"sheetId": sheetId,
+										"startRowIndex": 0,
+										"endRowIndex": 1,
+										"startColumnIndex": 0,
+										"endColumnIndex": values.length
+									}
+								},
+							},
+							{
+								"autoResizeDimensions": {
+									"dimensions": {
+									"sheetId": sheetId,
+									"dimension": "COLUMNS",
+									"startIndex": 0,
+									"endIndex": values.length
+									}
+								}
+							}
+						]
+					}
+				});
+					
+				request.then(function(response) {
+					// TODO: Change code below to process the `response` object:
+					console.log(response.result);
+				}, function(reason) {
+					console.error('error: ' + reason.result.error.message);
+				});
+			}
+		</script>
+
 		
 		<script type="module">
-
 			var access_token = null;
 
 			var base_url = location.protocol + '//' + location.host + location.pathname;
 
-			document.querySelector("#connectWitchTwitch").href = "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=" + base_url + "&scope=channel:read:subscriptions+bits:read";
+			document.querySelector("#connectWithTwitch").href = "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=" + base_url + "&scope=channel:read:subscriptions+bits:read";
 
 			// From https://github.com/sheetdb/sheetdb-js/blob/master/src/write.js
 			function write(url, data, options) {
@@ -278,7 +466,7 @@
 				var message = {
 					type: 'PING'
 				};
-				console.log(('SENT: ' + JSON.stringify(message) + '\n'));
+				logToConsoleAndDebug(('SENT: ' + JSON.stringify(message) + '\n'));
 				ws.send(JSON.stringify(message));
 			}
 
@@ -291,7 +479,7 @@
 						auth_token: auth_token
 					}
 				};
-				console.log('SENT: ' + JSON.stringify(message) + '\n');
+				logToConsoleAndDebug('SENT: ' + JSON.stringify(message) + '\n');
 				ws.send(JSON.stringify(message));
 			}
 
@@ -304,7 +492,7 @@
 
 				ws.onopen = function(event) {
 					readyToSend = true;
-					console.log('INFO: Socket Opened\n');
+					logToConsoleAndDebug('INFO: Socket Opened\n');
 					heartbeat();
 					heartbeatHandle = setInterval(heartbeat, heartbeatInterval);
 					listen("channel-subscribe-events-v1." + channel_id, auth_token);
@@ -313,15 +501,15 @@
 				};
 
 				ws.onerror = function(error) {
-					console.log('ERR:  ' + JSON.stringify(error) + '\n');
+					logToConsoleAndDebug('ERR:  ' + JSON.stringify(error) + '\n');
 				};
 
 				ws.onmessage = function(event) {
 					var top_level_message = JSON.parse(event.data);
 
-					console.log('RECV: ' + JSON.stringify(top_level_message) + '\n');
+					logToConsoleAndDebug('RECV: ' + JSON.stringify(top_level_message) + '\n');
 					if (top_level_message.type == 'RECONNECT') {
-						console.log('INFO: Reconnecting...\n');
+						logToConsoleAndDebug('INFO: Reconnecting...\n');
 						setTimeout(connect, reconnectInterval);
 					}
 					if (top_level_message.type == "MESSAGE") {
@@ -358,7 +546,7 @@
 										queueRoll(name, count);
 									})
 									.catch(err => {
-										console.log(err);
+										logToConsoleAndDebug(err);
 									});
 								}
 							}
@@ -382,15 +570,15 @@
 
 							queueRoll(name, count);
 						} else {
-							console.log("Found topic that I wasn't listening for?: " + topic);
+							logToConsoleAndDebug("Found topic that I wasn't listening for?: " + topic);
 						}
 					}
 				}
 
 				ws.onclose = function() {
-					console.log('INFO: Socket Closed\n');
+					logToConsoleAndDebug('INFO: Socket Closed\n');
 					clearInterval(heartbeatHandle);
-					console.log('INFO: Reconnecting...\n');
+					logToConsoleAndDebug('INFO: Reconnecting...\n');
 					setTimeout(connect, reconnectInterval);
 				};
 			}
@@ -421,11 +609,20 @@
 				else {
 					rollTotalCounts.set(name, roll_count);
 					rollCurSpinCounts.set(name, 0);
+					rollTimestamps.set(name, []);
 				}
+
+				let timestampString = getTimeStampString();
+				for(let roll_i = 0; roll_i < roll_count; ++roll_i) { 
+					rollTimestamps.get(name).push(timestampString);
+				}
+
 				updateRollQueueDisplay();
 				if(name == getCurRollName()) {
 					updateRollCount();
 				}
+
+				logToConsoleAndDebug("Queue'd " + roll_count + " roll(s) for " + name + " with time stamp: " + timestampString);
 			}
 
 			import * as THREE from 'three';
@@ -507,6 +704,7 @@
 			let is_rolling = false;
 			let rollTotalCounts = new Map();
 			let rollCurSpinCounts = new Map();
+			let rollTimestamps = new Map();
 
 			let lastRollTime;
 
@@ -596,7 +794,7 @@
 						window.history.replaceState(null, null, "/roller3d/");
 					})
 					.catch(err => {
-						console.log(err);
+						logToConsoleAndDebug(err);
 					});
 				
 				}
@@ -909,6 +1107,90 @@
 				return day + "/" + month + "/" + year + " " + hour + ":" + minute + ":" + second + " " + am_pm;
 			}
 
+			function appendRow(spreadsheetId, sheetId, values) {
+				let values_array = []
+
+				for(let value_idx = 0; value_idx < values.length; ++value_idx) {
+					values_array.push({userEnteredValue: {stringValue: values[value_idx]}})
+				}
+
+				var request = window.gapi.client.sheets.spreadsheets.batchUpdate({
+				spreadsheetId: spreadsheetId,
+				"resource": {
+					"requests": [
+						{
+							"insertDimension": {
+								"range": {
+									"sheetId": sheetId,
+									"dimension": "ROWS",
+									"startIndex": 1,
+									"endIndex": 2
+								},
+								"inheritFromBefore": false
+							}
+						},
+						{
+							"updateCells": {
+
+								"rows": 
+								{
+									values: values_array
+								}
+								,
+								"fields": "*",
+								"range": {
+									"sheetId": sheetId,
+									"startRowIndex": 1,  // I want to write to second row only
+									"endRowIndex": 2,
+									"startColumnIndex": 0, // start at first column
+									"endColumnIndex": 5   // end at 5th column
+								}
+							}
+						},
+						{
+							"autoResizeDimensions": {
+								"dimensions": {
+								"sheetId": sheetId,
+								"dimension": "COLUMNS",
+								"startIndex": 0,
+								"endIndex": values.length
+								}
+							}
+						}
+					]
+				}
+			});
+				
+				request.then(function(response) {
+					// TODO: Change code below to process the `response` object:
+					console.log(response.result);
+					}, function(reason) {
+					console.error('error: ' + reason.result.error.message);
+					});
+			}
+
+			function logRoll(name, reward, timestamp_received) { 
+				let spreadsheetId = window.spreadsheetId;
+				if(spreadsheetId != null) {
+					let sheetId = window.sheet_map.get("Rolls");
+					appendRow(spreadsheetId, sheetId, [getTimeStampString(), timestamp_received, name, reward]);
+				}
+			}
+
+			function logDebug(message) { 
+				let spreadsheetId = window.spreadsheetId;
+				if(spreadsheetId != null) {
+					let sheetId = window.sheet_map.get("Debug");
+					appendRow(spreadsheetId, sheetId, [getTimeStampString(), message]);
+				}
+			}
+
+			// Log to console and debug
+			function logToConsoleAndDebug(message) { 
+				console.log(message)
+				logDebug(message)
+			}
+
 			function finishCurRoll() {
 
 				is_rolling = false;
@@ -961,9 +1243,10 @@
 
 					rollTotalCounts.delete(cur_name);
 					rollCurSpinCounts.delete(cur_name);
+					rollTimestamps.delete(cur_name);
 				}
 				else {
-					console.log("ERROR: Trying to finish cur roll but no current roll present");
+					logToConsoleAndDebug("ERROR: Trying to finish cur roll but no current roll present");
 				}
 			}
 			function getCurRollCount() {
@@ -971,16 +1254,23 @@
 					return rollCurSpinCounts.values().next().value;
 				}
 				
-				console.log("ERR: Calling cur roll count but there are no rolls left");
+				logToConsoleAndDebug("ERR: Calling cur roll count but there are no rolls left");
 				return 0;
 			}
+			function getCurRollTimestamp() {
+				if(rollTimestamps.size > 0) {
+					return rollTimestamps.get(getCurRollName())[getCurRollCount()];
+				}
 
+				logToConsoleAndDebug("ERR: Calling cur roll timestamp but there are no rolls left");
+				return 0;
+			}
 			function getCurRollTotal() {
 				if(rollTotalCounts.size > 0) {
 					return rollTotalCounts.values().next().value;
 				}
 				
-				console.log("ERR: Calling cur roll total but there are no rolls left");
+				logToConsoleAndDebug("ERR: Calling cur roll total but there are no rolls left");
 				return 0;
 			}
 
@@ -1049,7 +1339,7 @@
 					return rollTotalCounts.keys().next().value;
 				}
 
-				console.log("ERR: Trying to get roll name but there aren't any rolls left");
+				logToConsoleAndDebug("ERR: Trying to get roll name but there aren't any rolls left");
 				return "N/A";
 			}
 
@@ -1060,7 +1350,8 @@
 			}
 
 			function finishOneRoll() {
-				
+				let curRollTimestamp = getCurRollTimestamp();
+
 				addOneRoll();
 
 				if(getCurRollCount() < getCurRollTotal()) {
@@ -1080,6 +1371,8 @@
 				updateRollCount();
 
 				let rollResult = choices[getHighlightedSegmentIndex()];
+
+				logRoll(getCurRollName(), rollResult, curRollTimestamp);
 
 				if(rollResultsCount.has(rollResult)) {
 					rollResultsCount.set(rollResult, rollResultsCount.get(rollResult) + 1);
@@ -1157,6 +1450,12 @@
 
 				updateRollCount();
 			}
+
+			window.addEventListener("message", (event)=>{
+
+				console.log(event);
+
+    		});
 
 			function createScene( ) {
 				if(spinnerTween != null) {
