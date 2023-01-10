@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Roller3D's Visual Display</title>
+        <link rel="icon" type="image/x-icon" href="/favicon.ico">
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	</head>
+
+	<body>
+        <canvas></canvas>
+    </body>
+
+    <!-- Vertex Shader Used For Composing Bloom & Non-Bloom Render Pass (credit to temdog007: https://threejs.org/examples/?q=bloom#webgl_postprocessing_unreal_bloom_selective) -->
+    <script type="x-shader/x-vertex" id="vertexshader">
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        }
+    </script>
+
+    <!-- Fragment Shader Used For Composing Bloom & Non-Bloom Render Pass (credit to temdog007: https://threejs.org/examples/?q=bloom#webgl_postprocessing_unreal_bloom_selective) -->
+    <script type="x-shader/x-fragment" id="fragmentshader">
+        uniform sampler2D baseTexture;
+        uniform sampler2D bloomTexture;
+
+        varying vec2 vUv;
+
+        void main() {
+            gl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );
+        }
+    </script>
+
+    <!-- Import map for Three. Honestly, three was a pain to get imported and I'm not even sure why this importmap is needed. -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.138.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.138.0/build/three.module.js';
+
+        import { GLTFLoader } from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/loaders/GLTFLoader.js';
+        import { FontLoader } from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/loaders/FontLoader.js';
+        import { TextGeometry } from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/geometries/TextGeometry.js';
+        import { RoomEnvironment} from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/environments/RoomEnvironment.js';
+        import { UnrealBloomPass} from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/postprocessing/UnrealBloomPass.js';
+        import { RenderPass} from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/postprocessing/RenderPass.js';
+        import { EffectComposer} from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/postprocessing/EffectComposer.js';
+        import { ShaderPass} from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/postprocessing/ShaderPass.js';
+
+        import { TWEEN } from 'https://unpkg.com/three@0.139.0/examples/jsm/libs/tween.module.min.js';
+
+        const light_on_map = new THREE.TextureLoader().load( 'light_on.jpg' );
+        light_on_map.wrapS = light_on_map.wrapT = THREE.RepeatWrapping;
+        light_on_map.anisotropy = 16;
+
+        const light_off_map = new THREE.TextureLoader().load( 'black.jpg' );
+        light_off_map.wrapS = light_off_map.wrapT = THREE.RepeatWrapping;
+        light_off_map.anisotropy = 16;
+
+        const light_on_mat = new THREE.MeshPhongMaterial( { map: light_on_map, side: THREE.DoubleSide } );
+        const light_off_mat = new THREE.MeshPhongMaterial( { map: light_off_map, side: THREE.DoubleSide } );
+
+        const darkMaterial = new THREE.MeshBasicMaterial( { color: 'black' } );
+        const materials = {};
+
+        var rollResultsCount = new Map();
+        var rollResultsTextMesh = new Map();
+        let rollResultsGroup = new THREE.Group();
+
+        const FLOOR = - 250;
+
+        let camera, scene, renderer, bloomComposer, finalComposer;
+        let bloomLayer;
+
+        let spinnerTween = null;
+
+        let segments = [];
+        let choices = [];
+        const segmentGroup = new THREE.Group();
+        let rewardsFadeOut = [];
+
+        let rollQueue = [];
+        let curRoll;
+
+        let nameTextMesh;
+        let rollCountMesh;
+
+        let is_queue_active = false;
+
+        let rewardsYPositions = new Map([
+            [0, 4],
+            [1, 5],
+            [2, 3], 
+            [3, 6], 
+            [4, 2], 
+            [5, 7], 
+            [6, 1], 
+            [7, 8], 
+            [8, 9],
+        ]);
+
+        const NEAR = 10, FAR = 3000;
+
+        const morphs = [];
+
+        let light;
+
+        const clock = new THREE.Clock();
+
+        let curRollName = null;
+        let curRollCountCurrent = null;
+        let curRollCountTotal = null;
+
+        // From https://discourse.threejs.org/t/load-font-into-global-variable-efficiency/31608/2
+        const fontLoader = new FontLoader();
+        let threeFont;
+        fontLoader.load( '//cdn.rawgit.com/mrdoob/three.js/master/examples/fonts/gentilis_bold.typeface.json', font => { threeFont = font; init(); animate(); } );
+
+        /*
+        ---------- Functions To Handle Resizing Renderers & Composers ----------
+        */
+        // https://stackoverflow.com/questions/29884485/threejs-canvas-size-based-on-container
+        function resizeCanvasToDisplaySize() {
+            const renderWidth = getRenderWidth();
+            const renderHeight = getRenderHeight();
+
+            renderer.domElement.width = renderWidth;
+            renderer.domElement.height = renderHeight;
+
+            renderer.setSize(renderWidth, renderHeight, false);
+
+            bloomComposer.setSize(renderWidth, renderHeight);
+            finalComposer.setSize(renderWidth, renderHeight);
+
+            camera.updateProjectionMatrix();
+        }
+
+        function getRenderWidth() {
+            return document.documentElement.clientWidth;
+        }
+
+        function getRenderHeight() { 
+            return document.documentElement.clientHeight;
+        }
+
+        function onWindowResize() {
+            resizeCanvasToDisplaySize();
+        }
+
+        /*
+        ---------- All Message Handling ----------
+        */
+        function onMessage(event) { 
+            if(event.origin !== window.location.origin) {
+                return;
+            }
+
+            let message = event.data;
+
+            if(message.type === "UpdateChoices") { 
+                updateChoices(message.values);
+            }
+            else if(message.type == "StartRoll") { 
+                startRoll(message.name, message.startingRollCount, message.rollCountTotal);
+            }
+            else if(message.type == "AddExtraRolls") { 
+                addExtraRolls(message.rollCount);
+            }
+            else {
+                console.log("ERROR: Unable to process following event", event);
+            }
+        }
+
+        function updateChoices(new_choices) {
+            choices = new_choices.reverse();
+
+            for(let i = 0; i < segments.length; ++i) { 
+                segmentGroup.remove(segments[i]);
+                scene.remove(segments[i]);
+            }
+            scene.remove(segmentGroup);
+            segments = [];
+
+            let increment_per = (2*Math.PI)/choices.length;
+            for(let i = 0; i < choices.length; ++i) { 
+                let segment = createSegment(choices[i], 100, i * increment_per, (i+1) * increment_per, 0x111111);
+                segments.push(segment);
+                segmentGroup.add(segments[i]);
+            }
+
+            scene.add(segmentGroup);
+        }
+        
+        function startRoll(name, rollCountStarting, rollCountTotal) { 
+            curRollName = name;
+            curRollCountCurrent = rollCountStarting;
+            curRollCountTotal = rollCountTotal;
+
+            updateNameDisplay();
+
+            updateRollCountDisplay();
+            
+            resetRollResults();
+
+            startRandomRollTween();
+        }
+
+        function addExtraRolls(extraRollCount) {
+            curRollCountTotal += extraRollCount;
+        }
+
+        /*
+        ---------- Create All Composers ----------
+        */
+        function createBloomComposer() {
+            const renderScene = new RenderPass( scene, camera );
+
+            const bloomPass = new UnrealBloomPass( new THREE.Vector2( getRenderWidth(), getRenderHeight() ), 1.5, 0.1, 0.85 );
+            bloomPass.threshold = 0.25;
+            bloomPass.strength = 0.75;
+            bloomPass.radius = 2;
+
+            bloomComposer = new EffectComposer( renderer );
+            bloomComposer.renderToScreen = false;
+            bloomComposer.addPass( renderScene );
+            bloomComposer.addPass( bloomPass );
+        }
+
+        function createFinalComposer() {
+            const renderScene = new RenderPass( scene, camera );
+
+            const finalPass = new ShaderPass(
+            new THREE.ShaderMaterial( {
+                    uniforms: {
+                        baseTexture: { value: null },
+                        bloomTexture: { value: bloomComposer.renderTarget2.texture }
+                    },
+                    vertexShader: document.getElementById( 'vertexshader' ).textContent,
+                    fragmentShader: document.getElementById( 'fragmentshader' ).textContent,
+                    defines: {}
+                } ), 'baseTexture'
+            );
+            finalPass.needsSwap = true;
+
+            finalComposer = new EffectComposer( renderer );
+            finalComposer.addPass( renderScene );
+            finalComposer.addPass( finalPass );
+        }
+
+        function init() {
+            bloomLayer = new THREE.Layers();
+            bloomLayer.set( 1 );
+
+            // CAMERA
+            camera = new THREE.PerspectiveCamera( 23, 1920 / 1080, NEAR, FAR );
+            camera.position.set(-200, 0, 800 );
+            camera.rotateY(-.40);
+
+            // SCENE
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color( 0x000000 /*0x59472b*/ );
+
+            // LIGHTS
+            const ambient = new THREE.AmbientLight( 0x444444 );
+            scene.add( ambient );
+
+            light = new THREE.SpotLight( 0xffffff, 1, 0, Math.PI / 5, 0.3 );
+            light.position.set( 0, 1500, 1000 );
+            light.target.position.set( 0, 0, 0 );
+
+            scene.add( light );
+
+            // RENDERER
+            renderer = new THREE.WebGLRenderer( { canvas: document.querySelector("canvas"),  antialias: true } );
+            renderer.setPixelRatio( window.devicePixelRatio );
+
+            renderer.domElement.style.left = "0";
+            renderer.domElement.style.top = "0";
+            renderer.domElement.style.width = "100%";
+            renderer.domElement.style.height = "100%";
+            renderer.domElement.style.position = "fixed";
+
+            createBloomComposer();
+
+            createFinalComposer();
+
+            resizeCanvasToDisplaySize();
+
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.autoClear = false;
+
+            startSpinningTween(0);
+
+            updateChoices(["", "", "", "", "", ""]);
+
+            window.addEventListener( 'resize',  onWindowResize );
+            window.addEventListener( 'message', onMessage );
+
+            if (window.opener !== null) {
+                window.opener.postMessage({type: "STATUS", status: "READY"}, window.location.domain);
+            }
+            else {
+                console.log("Starting display in head-less mode");
+            }
+            
+        }
+
+        function updateRollCountDisplay() {
+            if(isRollActive()) {
+                scene.remove(rollCountMesh);
+
+                if(curRollCountCurrent < curRollCountTotal) {
+                    rollCountMesh = createTextStroked((curRollCountCurrent+1).toString() + " of " + curRollCountTotal.toString(), 20, 250, 2, 1, 1, 0xcccccc, 0x000000);
+
+                    rollCountMesh.rotateY(-Math.PI/8);
+                    rollCountMesh.geometry.computeBoundingBox();
+                    let rollCount_width = rollCountMesh.geometry.boundingBox.max.x - rollCountMesh.geometry.boundingBox.min.x;
+                    rollCountMesh.position.x = (-0.5 * rollCount_width) - 70;
+                    rollCountMesh.position.y = -135;
+                    rollCountMesh.position.z = 50;
+
+                    scene.add(rollCountMesh);
+                }
+            }
+        }
+
+        function finishCurRoll() {
+            curRollName = null;
+            curRollCountCurrent = null;
+            curRollCountTotal = null;
+
+            for (let [key, value] of rollResultsTextMesh) {
+                value.traverse(addFadeTween);
+            }
+
+            nameTextMesh.traverse(addFadeTween);
+
+            setTimeout(alertOpenerOfFinish, 3000);
+        }
+
+        function alertOpenerOfFinish() {
+            if(window.opener === null) {
+                return;
+            }
+
+            window.opener.postMessage({type: "FINISHED_ALL_ROLLS"}, window.location.domain);
+        }
+
+        // Return true if roll currently active; false otherwise
+        function isRollActive() { 
+            if(curRollName === null) {
+                return false;
+            }
+
+            return true;
+        }
+
+        // Return speed (in milliseconds) per roll; the more rolls there are, the faster this is
+        function getCurRollSpeed() { 
+            return Math.max(500, 3056.384972*(Math.pow(0.9815517441, curRollCountTotal)));
+        }
+
+        function updateNameDisplay() {
+            scene.remove(nameTextMesh);
+
+            nameTextMesh = createTextStroked("Thanks " + curRollName + "!", 22, 500, 2, 1, 1, 0x0066cc, 0x000000);
+
+            nameTextMesh.rotateY(-Math.PI/8);
+            nameTextMesh.geometry.computeBoundingBox();
+            let nameText_width = nameTextMesh.geometry.boundingBox.max.x - nameTextMesh.geometry.boundingBox.min.x;
+            nameTextMesh.position.x = -0.5 * nameText_width;
+            nameTextMesh.position.y = 115;
+            nameTextMesh.position.z = 50;
+
+            scene.add(nameTextMesh);
+        }
+
+        function resetRollResults() {
+            scene.remove(rollResultsGroup);
+
+            rollResultsGroup = new THREE.Group();
+            rollResultsCount = new Map();
+            rollResultsTextMesh = new Map();
+
+            for (let rewards_i = 0; rewards_i < rewardsFadeOut.length; ++rewards_i) {
+
+                TWEEN.remove(rewardsFadeOut[rewards_i]);
+
+            }
+            rewardsFadeOut = [];
+        }
+
+        function startRandomRollTween() {
+            if(spinnerTween != null) {
+                TWEEN.remove(spinnerTween);
+            }
+
+            spinnerTween = new TWEEN.Tween(segmentGroup.rotation)
+                    .to({ x: "-" + (2*Math.PI*Math.random() + 3*Math.PI)}, getCurRollSpeed())
+                    .easing(TWEEN.Easing.Cubic.InOut)
+                    .onComplete(finishOneRoll)
+                    .start()
+        }
+
+        function addFadeTween(obj) {
+            rewardsFadeOut.push(new TWEEN.Tween(obj.material).delay(3000)
+                        .to({opacity: 0}, 1)
+                        .easing(TWEEN.Easing.Sinusoidal.In)
+                        .start());
+        }
+
+        function finishOneRoll() {
+            curRollCountCurrent += 1;
+
+            if(curRollCountCurrent < curRollCountTotal) {
+                startRandomRollTween();
+            }
+            else {
+                startSpinningTween(1000);
+            }
+
+            updateRollCountDisplay();
+
+            let rollResult = choices[getHighlightedSegmentIndex()];
+
+            if(window.opener !== null) {
+                window.opener.postMessage({type: "FINISHED_SINGLE_ROLL", name: curRollName, reward: rollResult}, window.location.domain);
+            }
+            
+            if(rollResultsCount.has(rollResult)) {
+                rollResultsCount.set(rollResult, rollResultsCount.get(rollResult) + 1);
+
+                let message = rollResultsCount.get(rollResult) + "x " + rollResult;
+
+                let resultsBox = createTextStroked(message, 18, 500, 2, 2, 1, 0x900000, 0x000000);
+
+                let prevBox = rollResultsTextMesh.get(rollResult);
+
+                resultsBox.rotateY(-Math.PI/8);
+                resultsBox.position.x = prevBox.position.x;
+                resultsBox.position.y = prevBox.position.y;
+                resultsBox.position.z = prevBox.position.z;
+
+                rollResultsGroup.remove(prevBox);
+
+                rollResultsGroup.add(resultsBox);
+
+                rollResultsTextMesh.set(rollResult, resultsBox);
+
+                resultsBox.traverse(enableBloom);
+            }
+            else {
+                let resultsBox = createTextStroked(rollResult, 18, 500, 2, 2, 1, 0x900000, 0x000000);
+
+                resultsBox.rotateY(-Math.PI/8);
+                resultsBox.position.x = 30;
+
+                let index = rollResultsCount.size;
+
+                if(rewardsYPositions.has(index)) {
+                    index = rewardsYPositions.get(index);
+                }
+                else {
+                    index += 1;
+                }
+
+                resultsBox.position.y = 120 - index * 30;
+                resultsBox.position.z = 50;
+
+                rollResultsCount.set(rollResult, 1);
+                rollResultsTextMesh.set(rollResult, resultsBox);
+
+                resultsBox.traverse(enableBloom);
+                rollResultsGroup.add(resultsBox);
+            }
+
+            scene.remove(rollResultsGroup);
+
+            scene.add(rollResultsGroup);
+
+            if(curRollCountCurrent >= curRollCountTotal) {
+                finishCurRoll();
+            }
+        }
+
+        function getHighlightedSegmentIndex() {
+            segmentGroup.rotateX(0);
+
+            let modAngle = segmentGroup.rotation.x + Math.PI;
+
+            let percent = ((modAngle / (2*Math.PI)) + 0.75) % 1.0;
+
+            let index = percent * segments.length;
+
+            return Math.floor(index);
+        }
+
+        function startSpinningTween(delay) {
+            if(spinnerTween != null) {
+                TWEEN.remove(spinnerTween);
+            }
+
+            spinnerTween = new TWEEN.Tween(segmentGroup.rotation).delay(delay)
+                    .to({ x: "-" + (2*9999*Math.PI)}, 9999*5000)
+                    .repeat(Infinity)
+                    .start()
+        }
+
+        /*
+        ----------- Animation & Rendering Functions -----------
+        */
+        // Setup loop for continually rendering
+        function animate() {
+            requestAnimationFrame( animate );
+
+            render();
+        }
+
+        // Render single frame
+        function render() {
+
+            const delta = clock.getDelta();
+
+            let index = getHighlightedSegmentIndex();
+
+            for(let seg_idx = 0; seg_idx < segments.length; ++seg_idx) {
+                if(seg_idx === index) {
+                    segments[seg_idx].traverse(enableBloom);
+                }
+                else {
+                    segments[seg_idx].traverse(disableBloom);
+                }
+            }
+
+            renderer.clear();
+
+            scene.traverse( darkenNonBloomed );
+            scene.background = 0x00000;
+            bloomComposer.render();
+            scene.traverse( restoreMaterial );
+
+            scene.background = new THREE.Color( 0x0000ff );
+            finalComposer.render();
+
+            TWEEN.update();
+            
+            // Call to re-calculate rotation x (in 0-2pi range)
+            segmentGroup.rotateX(0);
+        }
+
+        // Render Bloom
+        function renderBloom( mask ) {
+            if ( mask === true ) {
+                scene.traverse( darkenNonBloomed );
+                bloomComposer.render();
+                scene.traverse( restoreMaterial );
+
+            } else {
+                camera.layers.set( BLOOM_SCENE );
+                bloomComposer.render();
+                camera.layers.set( ENTIRE_SCENE );
+            }
+        }
+
+        // Helper function to enable bloom on a single object
+        function enableBloom( obj ) {
+            obj.layers.enable(1);
+
+            if(obj.geometry.type == "CylinderGeometry") {
+                obj.material = [light_off_mat, light_on_mat, light_off_mat];
+            }
+        }
+
+        // Helper function to disable bloom on a single object
+        function disableBloom( obj ) {
+            obj.layers.disable(1);
+            
+            if(obj.geometry.type == "CylinderGeometry") {
+                obj.material = [light_off_mat, light_off_mat, light_off_mat];
+            }
+        }
+
+        // Helper function to darken all non-bloomed objects in threejs
+        // Note that all changed objects have their "real" material stored in Map "materials"
+        // Upon calling "restoreMaterial", all of the "real" materials are restored to their respective object
+        function darkenNonBloomed( obj ) {
+            if ( obj.isMesh && bloomLayer.test( obj.layers ) === false ) {
+
+                materials[ obj.uuid ] = obj.material;
+                obj.material = darkMaterial;
+
+            }
+        }
+
+        // Restore all materials back to original material; see "darkenNonBloomed" for more info
+        function restoreMaterial( obj ) {
+
+            if ( materials[ obj.uuid ] ) {
+
+                obj.material = materials[ obj.uuid ];
+                delete materials[ obj.uuid ];
+
+            }
+        }
+
+        /*
+        ----------- Helper Functions to Create threejs Objects -----------
+        */
+        function createText(message, size, height, bevelThickness, bevelSize, color) {
+            var textGeo = new TextGeometry( message, {
+                font: threeFont,
+
+                size: size,
+                height: height,
+                curveSegments: 20,
+
+                bevelThickness: bevelThickness,
+                bevelSize: bevelSize,
+                bevelEnabled: true
+
+            } );
+
+            const textMaterial = new THREE.MeshPhongMaterial( { color: color, specular: 0x111111, transparent: true } );
+
+            var mesh = new THREE.Mesh( textGeo, textMaterial );
+
+            textGeo.computeBoundingBox();
+
+            mesh.position.x = -0.5 * ( textGeo.boundingBox.max.x - textGeo.boundingBox.min.x );
+            mesh.position.y = -0.5 * ( textGeo.boundingBox.max.y - textGeo.boundingBox.min.y );
+
+            return mesh;
+        }
+
+        function createTextStroked(message, maxSize, totalSize, height, bevelThickness, bevelSize, color, color2) {
+            let size = Math.min(maxSize, Math.floor(totalSize / message.length));
+            
+            let mesh = createText(message, size, height, bevelThickness, bevelSize, color); 
+            let mesh2 = createText(message, size, 1, bevelThickness, bevelSize*2, color2);
+
+            mesh2.position.x = mesh.position.x;
+            mesh2.position.y = mesh.position.y;
+
+            mesh.attach(mesh2);
+
+            return mesh;
+        }
+
+        function createLight() {
+            var lightGeo = new THREE.CylinderGeometry(5, 5, 2, 60);
+
+            const light = new THREE.Mesh(lightGeo, [light_off_mat, light_on_mat, light_off_mat]);
+
+            light.rotation.x = 0.5 * Math.PI;
+            light.rotation.y = 0.5 * Math.PI;
+            light.position.y -= 20;
+            return light;
+        }
+
+        // From https://stackoverflow.com/questions/51723338/change-the-position-of-a-piechart-slice-in-threejs
+        function createSegment(display_str, radius, angleStart, angleEnd, color) {
+            var extrOpt = {
+                curveSegments: 32,
+                steps: 1,
+                depth: 150,
+                bevelEnabled: false,
+            };
+
+            var shape = new THREE.Shape();
+            shape.moveTo(0, 0);
+            shape.absarc(0, 0, radius, angleStart, angleEnd, false);
+            shape.lineTo(0, 0);
+
+            var geom = new THREE.ExtrudeGeometry(shape, extrOpt);
+            geom.rotateX(-Math.PI / 2);
+            var mat = new THREE.MeshLambertMaterial({
+                color: color
+            });
+            var mesh = new THREE.Mesh(geom, mat);
+            mesh.userData.angleStart = angleStart;
+            mesh.userData.angleEnd = angleEnd;
+
+            mesh.rotateZ(Math.PI / 2);
+            mesh.rotateY(Math.PI);
+
+            let text = createTextStroked(display_str, 24, 195, 3, 3, 1, 0x900000, 0xfbf5e9);
+
+            text.geometry.computeBoundingBox();
+            let center = text.geometry.boundingBox.getCenter(new THREE.Vector3());
+
+            angleStart -= Math.PI/2;
+            angleEnd -= Math.PI/2;
+
+            let middleAngle = ((angleEnd + angleStart) / 2);
+
+            let textAngleDiff = Math.asin((center.y/radius));
+
+            middleAngle -= textAngleDiff;
+            text.position.z = (Math.cos(middleAngle)*radius);
+            text.position.y = (Math.sin(middleAngle)*radius);
+
+            text.position.x = -1 * (extrOpt.depth/2 + center.x);
+
+            text.rotateX(-1*middleAngle);
+
+            mesh.attach(text);
+
+            let angleDiff = angleEnd - angleStart;
+
+            let last_angle = angleStart + 0.75 * angleDiff;
+
+            let first_angle = angleStart + 0.25 * angleDiff;
+
+            let tl_light = createLight();
+            tl_light.position.x = -1 * (extrOpt.depth) + 7.5;
+            tl_light.position.z = (Math.cos(last_angle)*radius);
+            tl_light.position.y = (Math.sin(last_angle)*radius);
+            tl_light.rotateZ(-1*last_angle);
+
+            let bl_light = createLight();
+            bl_light.position.x = -1 * (extrOpt.depth) + 7.5;
+            bl_light.position.z = (Math.cos(first_angle)*radius);
+            bl_light.position.y = (Math.sin(first_angle)*radius);
+            bl_light.rotateZ(-1*first_angle);
+
+            let tr_light = createLight();
+            tr_light.position.x = -7.5;
+            tr_light.position.z = (Math.cos(last_angle)*radius);
+            tr_light.position.y = (Math.sin(last_angle)*radius);
+            tr_light.rotateZ(-1*last_angle);
+            // tr_light.position.x = mesh.position.x + width - 8;
+
+            let br_light = createLight();
+            br_light.position.x = -7.5;
+            br_light.position.z = (Math.cos(first_angle)*radius);
+            br_light.position.y = (Math.sin(first_angle)*radius);
+            br_light.rotateZ(-1*first_angle);
+
+            mesh.attach(tl_light);
+            mesh.attach(bl_light);
+            mesh.attach(tr_light);
+            mesh.attach(br_light);
+
+            return mesh;
+        }
+
+    </script>
+</html>
