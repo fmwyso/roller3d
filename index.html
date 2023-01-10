@@ -67,8 +67,8 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 		<link rel="icon" type="image/x-icon" href="/favicon.ico">
-		<script src="./gapi_integration.js"></script>
-		<script src="./twitch_integration.js"></script>
+		<script src="gapi_integration.js"></script>
+		<script src="twitch_integration.js"></script>
 		<script src="https://accounts.google.com/gsi/client" onload="gisInit()" async defer></script>
 		<script src="https://apis.google.com/js/api.js" onload="gapiLoad()" async defer></script>
 	</head>
@@ -313,7 +313,7 @@
 					return;
 				}
 				
-				rollDisplayWindow = window.open('/roll_display.html','',"resizable=no, toolbar=no, scrollbars=no, menubar=no, status=no, directories=no, width=2560px, height=1440px");
+				rollDisplayWindow = window.open('./roll_display.html','',"resizable=no, toolbar=no, scrollbars=no, menubar=no, status=no, directories=no, width=2560px, height=1440px");
 				rollDisplayWindow.window.onunload = unloadDisplayWindow;
 			}
 
