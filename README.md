@@ -16,10 +16,11 @@ How to use the page:
   - If you give out 5 gift subs non-anonymously, you get 5 rolls. 
   - If you give out 5 gift subs anonymously, each of the 5 people you gave a sub get a roll. 
   - If you give out a 6 month gift sub to someone else, you get the 6 rolls for yourself. 
+  - You can change the "250" default by changing the "Bits Per Roll" text box.
 5) Click on "Open Display Window" to open up the rolling visualization. Note that this window is required to be open in order to roll.
 6) Edit the list of choices ("Possible Choices") to what you want; a new choice on each line. After you are done, click "Update Choices". You should now see your choices on the roller. 
 7) By default, all roll results will be stored in a big text box. However, I recommend clicking "Sign in with Google" to open up a Google Sheets (that is dynamically generated). This will be created in your Google Drive. You can view it by visiting your Google Drive/Sheets folder. Once signed in, the "Sign in with Google" button should be replaced with "Now logging to spreadsheet" and you should see a Google Sheets page. Note that this Google Sheets will also store debug information in the tab "Debug"; if an issue occurs, that debug log will be very helpful for me :).
-8) To start rolling, click on "START Roll Queue". This will automatically roll for all viewers in the queue (one viewer at a time); giving a ~1 second break between viewers. To stop rolling, click the same button (which is now labeled "STOP Roll Queue"). 
+8) To start rolling, click on "START Roll Queue". This will automatically roll for all viewers in the queue (one viewer at a time); giving a ~3 second break between viewers. To stop rolling, click the same button (which is now labeled "STOP Roll Queue"). 
 9) If you want to add rolls manually, just edit the "Name" and "Roll Count" at the top. After clicking "Add to Roll Queue", it will add those number of rolls for the given name. Note that you cannot reduce the roll count for any person; you can only add more rolls or new rolls. 
 <br />
 This page was made possible by the following libraries: <a href="https://developers.google.com/sheets/api/guides/concepts">Google Sheets API</a>, <a href="https://docs.sheetdb.io/">sheetdb</a>, <a href="https://threejs.org/">threejs</a> and <a href="https://createjs.com/tweenjs">tweenjs</a>. 
