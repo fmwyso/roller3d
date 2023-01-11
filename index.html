@@ -266,9 +266,11 @@
 			// Triggered by user clicking a button on the page to enable/disable queue
 			function toggleQueue() {
 				if(is_queue_active) {
+					logToConsoleAndDebug("User manually disabled queue");
 					disableQueue();
 				}
 				else {
+					logToConsoleAndDebug("User manually enabled queue");
 					enableQueue();
 				}
 			}
@@ -312,6 +314,8 @@
 					console.log("Attempting to open a new window while one is already active.");
 					return;
 				}
+
+				logToConsoleAndDebug("Opening Display Window");
 				
 				rollDisplayWindow = window.open('./roll_display.html','',"resizable=no, toolbar=no, scrollbars=no, menubar=no, status=no, directories=no, width=2560px, height=1440px");
 				rollDisplayWindow.window.onunload = unloadDisplayWindow;
@@ -322,6 +326,8 @@
 				if(rollDisplayWindow.window.location.href === "about:blank") {
 					return;
 				}
+
+				logToConsoleAndDebug("Display Window Unloaded");
 
 				if(is_rolling) {
 					logToConsoleAndDebug("Forcibly disabling queue due to display window being closed");
@@ -344,6 +350,8 @@
 				}
 
 				let choices = document.querySelector('#choices').value.split(/\r?\n/);
+
+				logToConsoleAndDebug("Updating Choices To: " + choices.toString());
 
 				rollDisplayWindow.postMessage({type: "UpdateChoices", values: choices}, window.location.domain);
 			}
