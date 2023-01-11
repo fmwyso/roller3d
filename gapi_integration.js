@@ -2,6 +2,7 @@ var tokenClient;
 var g_access_token = null;
 var sheet_map = new Map();
 var spreadsheetId = null;
+var email = null;
 
 function gapiStart() {
         gapi.client.init({
@@ -19,19 +20,48 @@ function gapiLoad() {
     gapi.load('client', gapiStart)
 }
 
+async function gapi_token_callback(tokenResponse) { 
+    g_access_token = tokenResponse.access_token;
+            
+    console.log("Retrieved Token: " + g_access_token.toString())
+
+    if(email === null) { 
+        const resp = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=' + g_access_token)
+
+        const json = await resp.json();
+
+        email = json.email;
+    }
+
+    if(spreadsheetId === null) {
+        createSpreadsheet();
+    }
+
+    setTimeout(get_token_implicit, 50 * 60 * 1000);  
+}
+
 function gisInit() {
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: '441029014764-tl4fr1os2p7hkdn5267jvp4k6f1v2cri.apps.googleusercontent.com',
-        scope: 'https://www.googleapis.com/auth/spreadsheets',
-        callback: (tokenResponse) => {
-        g_access_token = tokenResponse.access_token;
-        createSpreadsheet();
-        },
+        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email',
+        callback: gapi_token_callback
     });
 }
 
 function get_token() {
     tokenClient.requestAccessToken();
+}
+
+function get_token_implicit() {
+    // If email is null, we can't request implicitly (need to open pop-up for user to select e-mail manually)
+    if(email === null) {
+        get_token();
+    }
+
+    // If email is not null, we can request implicitly (pop-up happens but goes away automatically)
+    else {
+        tokenClient.requestAccessToken({prompt: '', hint: email});
+    }
 }
 
 function getTimeStampString() {
@@ -113,7 +143,7 @@ async function createSpreadsheet() {
     writeHeaders(spreadsheetId, sheet_map.get("Rolls"), ["Rolled Timestamp", "Received Timestamp", "Name", "Reward"])
     writeHeaders(spreadsheetId, sheet_map.get("Debug"), ["Timestamp", "Info"])
 
-    document.querySelector(".googleIntegrationDiv").innerHTML = '<a href="' + response.result.spreadsheetUrl + '" target="_blank" style="height:100px"><p>Now logging to spreadsheet: "' + title + "'. Click here to open spreadsheet.</p></a>";
+    document.querySelector(".googleIntegrationDiv").innerHTML = '<a href="' + response.result.spreadsheetUrl + '" target="_blank" style="height:100px"><p>Logged in as ' + email + '. Now logging to spreadsheet: "' + title + "'. Click here to open spreadsheet.</p></a>";
     document.querySelector(".rollResultsDisplay").innerHTML = '<iframe src="' + response.result.spreadsheetUrl + '" style="height: 100%; width: 100%;" title="Google Sheets View"></iframe>';
 }
 
