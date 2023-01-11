@@ -23,14 +23,23 @@ function gisInit() {
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: '441029014764-tl4fr1os2p7hkdn5267jvp4k6f1v2cri.apps.googleusercontent.com',
         scope: 'https://www.googleapis.com/auth/spreadsheets',
+        prompt: '',
         callback: (tokenResponse) => {
-        g_access_token = tokenResponse.access_token;
-        createSpreadsheet();
+            g_access_token = tokenResponse.access_token;
+
+            console.log("Token Retrieved: " + g_access_token.toString());
+
+            if(spreadsheetId === null) {
+                createSpreadsheet();
+            }
+
+            setTimeout(get_token, 5000);
         },
     });
 }
 
 function get_token() {
+    console.log("Called");
     tokenClient.requestAccessToken();
 }
 
