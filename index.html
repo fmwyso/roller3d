@@ -326,7 +326,7 @@
 
 				logToConsoleAndDebug("Display Window Unloaded");
 
-				if(is_rolling) {
+				if(is_queue_active) {
 					logToConsoleAndDebug("Forcibly disabling queue due to display window being closed");
 					disableQueue();
 				}
@@ -566,28 +566,6 @@
 				let rollCount = document.querySelector("#roll_count").value
 
 				queueRoll(name, parseInt(rollCount))
-			}
-
-			function render() {
-
-				const delta = clock.getDelta();
-
-				updateRollQueueDisplay();
-
-				if(is_queue_active) {
-					if(!is_rolling || (getCurRollCount() >= getCurRollTotal())) {
-						let timeFromLastRoll = 999999;
-						
-						if(lastRollTime != null) { 
-							timeFromLastRoll = ((new Date()).getTime() - lastRollTime);
-						}
-						
-						if((hasCurRoll()) && (timeFromLastRoll > 3000)) {
-							roll_wheel();
-						}
-					}
-				}
-
 			}
 
 		</script>
