@@ -174,7 +174,7 @@ function getTwitchToken() {
 
     const twitch_token_url = "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=" + redirect_url + "&scope=channel:read:subscriptions+bits:read";
 
-    window.open(twitch_token_url,'',"resizable=no, toolbar=no, scrollbars=no, menubar=no, status=no, directories=no, width=256px, height=256px");
+    window.open(twitch_token_url,'',"width=256px, height=256px");
 }
 
 window.getTwitchToken = getTwitchToken
