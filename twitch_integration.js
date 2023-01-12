@@ -1,7 +1,5 @@
 var twitch_access_token = null;
 
-var check_alive = null;
-
 var ws;
 
 // Handle message handling for token authentication
@@ -52,23 +50,9 @@ function listen(topic, auth_token) {
     ws.send(JSON.stringify(message));
 }
 
-function resolve_disconnect() {
-    logToConsoleAndDebug("Twitch disconnect detected, attempting to resolve by obtaining new token");
-    getTwitchToken();
-}
-
-function initialize_check_alive() {
-    check_alive = setTimeout(resolve_disconnect, 90 * 1000);
-}
-
-function reinitialize_check_alive() {
-    clearTimeout(check_alive);
-    initialize_check_alive();
-}
-
 function connect(channel_id, auth_token) {
     var heartbeatInterval = 1000 * 60; //ms between PING's
-    var reconnectInterval = 1000 * 3; //ms to wait before reconnect
+    var reconnectInterval = 1000 * 1; //ms to wait before reconnect
     var heartbeatHandle;
 
     ws = new WebSocket('wss://pubsub-edge.twitch.tv');
@@ -91,12 +75,14 @@ function connect(channel_id, auth_token) {
         var top_level_message = JSON.parse(event.data);
 
         logToConsoleAndDebug('RECV: ' + JSON.stringify(top_level_message) + '\n');
+        if(top_level_message.type == "RESPONSE") { 
+            if(top_level_message.error == "ERR_BADAUTH") { 
+                twitchInit();
+            }
+        }
         if (top_level_message.type == 'RECONNECT') {
             logToConsoleAndDebug('INFO: Reconnecting...\n');
-            setTimeout(twitch_connect, reconnectInterval);
-        }
-        if(top_level_message.type == "PONG") {
-            reinitialize_check_alive();
+            setTimeout(connect, reconnectInterval);
         }
         if (top_level_message.type == "MESSAGE") {
             var topic = top_level_message.data.topic;
