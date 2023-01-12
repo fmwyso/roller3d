@@ -177,6 +177,8 @@ function getTwitchToken() {
     window.open(twitch_token_url,'',"resizable=no, toolbar=no, scrollbars=no, menubar=no, status=no, directories=no, width=256px, height=256px");
 }
 
+window.getTwitchToken = getTwitchToken
+
 function twitchInit() {
     if(twitch_access_token === null) {
         logToConsoleAndDebug("Attempting to connect to twitch with null access token");
