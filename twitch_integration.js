@@ -77,6 +77,7 @@ function connect(channel_id, auth_token) {
         logToConsoleAndDebug('RECV: ' + JSON.stringify(top_level_message) + '\n');
         if(top_level_message.type == "RESPONSE") { 
             if(top_level_message.error == "ERR_BADAUTH") { 
+                logToConsoleAndDebug("Attempting to reconnect due to BADAUTH");
                 twitchInit();
             }
         }
