@@ -1,6 +1,25 @@
 var twitch_access_token = null;
 
+var check_alive = null;
+
 var ws;
+
+// Handle message handling for token authentication
+window.addEventListener( 'message', onMessage );
+function onMessage(event) { 
+    if(event.origin !== window.location.origin) {
+        return;
+    }
+
+    let message = event.data;
+
+    if(message.type === "TOKEN") { 
+        twitch_access_token = message.token;
+        logToConsoleAndDebug("Retrieved Twitch Token: " + twitch_access_token);
+        twitchInit();
+    }
+}
+
 
 // Source: https://www.thepolyglotdeveloper.com/2015/03/create-a-random-nonce-string-using-javascript/
 function nonce(length) {
@@ -33,6 +52,20 @@ function listen(topic, auth_token) {
     ws.send(JSON.stringify(message));
 }
 
+function resolve_disconnect() {
+    logToConsoleAndDebug("Twitch disconnect detected, attempting to resolve by obtaining new token");
+    getTwitchToken();
+}
+
+function initialize_check_alive() {
+    check_alive = setTimeout(resolve_disconnect, 90 * 1000);
+}
+
+function reinitialize_check_alive() {
+    clearTimeout(check_alive);
+    initialize_check_alive();
+}
+
 function connect(channel_id, auth_token) {
     var heartbeatInterval = 1000 * 60; //ms between PING's
     var reconnectInterval = 1000 * 3; //ms to wait before reconnect
@@ -44,6 +77,7 @@ function connect(channel_id, auth_token) {
         logToConsoleAndDebug('INFO: Socket Opened\n');
         heartbeat();
         heartbeatHandle = setInterval(heartbeat, heartbeatInterval);
+        
         listen("channel-subscribe-events-v1." + channel_id, auth_token);
         // listen("channel-points-channel-v1." + channel_id, auth_token);
         listen("channel-bits-events-v2." + channel_id, auth_token);
@@ -60,6 +94,9 @@ function connect(channel_id, auth_token) {
         if (top_level_message.type == 'RECONNECT') {
             logToConsoleAndDebug('INFO: Reconnecting...\n');
             setTimeout(twitch_connect, reconnectInterval);
+        }
+        if(top_level_message.type == "PONG") {
+            reinitialize_check_alive();
         }
         if (top_level_message.type == "MESSAGE") {
             var topic = top_level_message.data.topic;
@@ -132,36 +169,39 @@ function connect(channel_id, auth_token) {
     };
 }
 
-function twitchInit() {
-    var base_url = location.protocol + '//' + location.host + location.pathname;
+function getTwitchToken() {
+    var redirect_url = location.toString().substring(0, location.toString().lastIndexOf('/')) + "/twitch_redirect.html";
 
-    document.querySelector("#connectWithTwitch").href = "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=" + base_url + "&scope=channel:read:subscriptions+bits:read";
+    const twitch_token_url = "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=zzkq9lw1rprzcr2edg6hn61ducjvri&redirect_uri=" + redirect_url + "&scope=channel:read:subscriptions+bits:read";
 
-    const urlParams = new URLSearchParams(window.location.hash.substring(1));
-    
-    if(urlParams.has("access_token")) {
-        twitch_access_token = urlParams.get('access_token');
-
-        fetch(
-            'https://api.twitch.tv/helix/users',
-            {
-                "headers": {
-                    "Client-ID": "zzkq9lw1rprzcr2edg6hn61ducjvri",
-                    "Authorization": "Bearer " + twitch_access_token
-                }
-            }
-        )
-        .then(resp => resp.json())
-        .then(resp => {
-            let channel_id = resp["data"][0]["id"];
-
-            document.getElementById("twitchIntegrationDiv").innerHTML = "<p>Automatically queueing subs/bits to \"" + resp["data"][0]["display_name"] + "\".</p>";
-            
-            connect(channel_id, twitch_access_token);
-        })
-        .catch(err => {
-            logToConsoleAndDebug(err);
-        });
-    
-    }
+    window.open(twitch_token_url,'',"resizable=no, toolbar=no, scrollbars=no, menubar=no, status=no, directories=no, width=256px, height=256px");
 }
+
+function twitchInit() {
+    if(twitch_access_token === null) {
+        logToConsoleAndDebug("Attempting to connect to twitch with null access token");
+        return;
+    }
+
+    fetch(
+        'https://api.twitch.tv/helix/users',
+        {
+            "headers": {
+                "Client-ID": "zzkq9lw1rprzcr2edg6hn61ducjvri",
+                "Authorization": "Bearer " + twitch_access_token
+            }
+        }
+    )
+    .then(resp => resp.json())
+    .then(resp => {
+        let channel_id = resp["data"][0]["id"];
+
+        document.getElementById("twitchIntegrationDiv").innerHTML = "<p>Automatically queueing subs/bits to \"" + resp["data"][0]["display_name"] + "\".</p>";
+        
+        connect(channel_id, twitch_access_token);
+    })
+    .catch(err => {
+        logToConsoleAndDebug(err);
+    });
+}
+

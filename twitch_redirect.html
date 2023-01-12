@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Roller3D's Visual Display</title>
+        <link rel="icon" type="image/x-icon" href="favicon.ico">
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	</head>
+
+	<body onload="handle_redirect()">
+        <p>Handling redirect from Twitch...</p>
+    </body>
+    <script>
+        const urlParams = new URLSearchParams(window.location.hash.substring(1));
+
+        if(urlParams.has("access_token")) {
+            const twitch_access_token = urlParams.get('access_token');
+
+            window.opener.postMessage({type: "TOKEN", token: twitch_access_token}, window.location);
+        }
+        
+        this.close();
+    </script>
+</html>

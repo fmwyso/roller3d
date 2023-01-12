@@ -23,7 +23,7 @@ function gapiLoad() {
 async function gapi_token_callback(tokenResponse) { 
     g_access_token = tokenResponse.access_token;
             
-    console.log("Retrieved Token: " + g_access_token.toString())
+    console.log("Retrieved Google Token: " + g_access_token.toString())
 
     if(email === null) { 
         const resp = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=' + g_access_token)
@@ -143,7 +143,7 @@ async function createSpreadsheet() {
     writeHeaders(spreadsheetId, sheet_map.get("Rolls"), ["Rolled Timestamp", "Received Timestamp", "Name", "Reward"])
     writeHeaders(spreadsheetId, sheet_map.get("Debug"), ["Timestamp", "Info"])
 
-    document.querySelector(".googleIntegrationDiv").innerHTML = '<a href="' + response.result.spreadsheetUrl + '" target="_blank" style="height:100px"><p>Logged in as ' + email + '. Now logging to spreadsheet: "' + title + "'. Click here to open spreadsheet.</p></a>";
+    document.querySelector(".googleIntegrationDiv").innerHTML = '<a href="' + response.result.spreadsheetUrl + '" target="_blank" style="height:100px"><p>Now logging to spreadsheet: "' + title + "'. Click here to open spreadsheet.</p></a>";
     document.querySelector(".rollResultsDisplay").innerHTML = '<iframe src="' + response.result.spreadsheetUrl + '" style="height: 100%; width: 100%;" title="Google Sheets View"></iframe>';
 }
 

@@ -72,7 +72,7 @@
 		<script src="https://accounts.google.com/gsi/client" onload="gisInit()" async defer></script>
 		<script src="https://apis.google.com/js/api.js" onload="gapiLoad()" async defer></script>
 	</head>
-	<body onload="twitchInit()">
+	<body>
 		<div class="frame">
 			<div class="rollQueueDiv" style="flex: 0 0 auto; text-align: center; width: 400px; display: flex; flex-flow: column;"> 
 				<div style="flex: 0 0 20px; vertical-align: middle; text-align:center; vertical-align:middle; line-height: 20px; padding: 0px;">
@@ -98,7 +98,7 @@
 					<br />
 					<button type="button" id="roll_btn" onclick="manualAddToQueue()" style="height:40px; width: 100%;">Add to Roll Queue</button>
 					<div class="twitchIntegrationDiv" id="twitchIntegrationDiv">
-						<a id="connectWithTwitch"><img src="./connect_with_twitch.png"></img></a>
+						<img src="./connect_with_twitch.png" style="cursor:pointer" onclick="getTwitchToken()"></img>
 					</div>
 				</div>
 			</div>
@@ -161,7 +161,7 @@
 						updateChoices();
 					}
 				}
-				else if(message.type == "FINISHED_SINGLE_ROLL") {
+				else if(message.type === "FINISHED_SINGLE_ROLL") {
 
 					if(message.name !== getCurRollName()) {
 						logToConsoleAndDebug("ERROR: MISMATCHED NAMES ON SINGLE ROLL: " + message.name + " vs. " + getCurRollName())
@@ -169,12 +169,9 @@
 
 					registerSingleRoll(message.name, message.reward, getCurRollTimestamp());
 				}
-				else if(message.type == "FINISHED_ALL_ROLLS") {
+				else if(message.type === "FINISHED_ALL_ROLLS") {
 					is_rolling = false;
 					tryToStartRoll();
-				}
-				else {
-					logToConsoleAndDebug("ERROR: Unable to process following event: " + event.toString());
 				}
 			}
 
