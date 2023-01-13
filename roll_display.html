@@ -42,6 +42,8 @@
     </script>
 
     <script type="module">
+        var is_wheel_visible = true;
+
         import * as THREE from 'https://unpkg.com/three@0.138.0/build/three.module.js';
 
         import { GLTFLoader } from '//cdn.rawgit.com/mrdoob/three.js/master/examples/jsm/loaders/GLTFLoader.js';
@@ -68,6 +70,7 @@
 
         const darkMaterial = new THREE.MeshBasicMaterial( { color: 'black' } );
         const materials = {};
+        const visibles = {};
 
         var rollResultsCount = new Map();
         var rollResultsTextMesh = new Map();
@@ -171,6 +174,9 @@
             }
             else if(message.type == "AddExtraRolls") { 
                 addExtraRolls(message.rollCount);
+            }
+            else if(message.type == "SetWheelVisibility") {
+                is_wheel_visible = message.visible;
             }
             else {
                 console.log("ERROR: Unable to process following event", event);
@@ -540,13 +546,18 @@
 
             renderer.clear();
 
-            scene.traverse( darkenNonBloomed );
-            scene.background = 0x00000;
-            bloomComposer.render();
-            scene.traverse( restoreMaterial );
+            if(is_wheel_visible === true) {
+                scene.traverse( darkenNonBloomed );
+                scene.background = 0x00000;
+                bloomComposer.render();
+                scene.traverse( restoreMaterial );
 
-            scene.background = new THREE.Color( 0x0000ff );
-            finalComposer.render();
+                scene.background = new THREE.Color( 0x0000ff );
+                finalComposer.render();
+            }
+            else {
+                renderOnlyBackground();
+            }
 
             TWEEN.update();
             
@@ -554,18 +565,12 @@
             segmentGroup.rotateX(0);
         }
 
-        // Render Bloom
-        function renderBloom( mask ) {
-            if ( mask === true ) {
-                scene.traverse( darkenNonBloomed );
-                bloomComposer.render();
-                scene.traverse( restoreMaterial );
-
-            } else {
-                camera.layers.set( BLOOM_SCENE );
-                bloomComposer.render();
-                camera.layers.set( ENTIRE_SCENE );
-            }
+        // Render Nothing
+        function renderOnlyBackground( ) {
+            scene.traverse( setInvisible );
+            bloomComposer.render();
+            finalComposer.render();
+            scene.traverse( restoreVisibility );
         }
 
         // Helper function to enable bloom on a single object
@@ -598,6 +603,18 @@
             }
         }
 
+        // Helper function to darken all non-bloomed objects in threejs
+        // Note that all changed objects have their "real" material stored in Map "materials"
+        // Upon calling "restoreMaterial", all of the "real" materials are restored to their respective object
+        function setInvisible( obj ) {
+            if ( obj.visible === true ) {
+
+                obj.visible = false;
+                visibles[ obj.uuid ] = true;
+                
+            }
+        }
+
         // Restore all materials back to original material; see "darkenNonBloomed" for more info
         function restoreMaterial( obj ) {
 
@@ -605,6 +622,15 @@
 
                 obj.material = materials[ obj.uuid ];
                 delete materials[ obj.uuid ];
+
+            }
+        }
+
+        function restoreVisibility( obj ) {
+            if ( visibles[ obj.uuid ] ) {
+
+                obj.visible = true;
+                delete visibles[ obj.uuid ];
 
             }
         }

@@ -138,9 +138,15 @@
 				</div>
 
 				<br />
+				<div class="hideRollWithQueueDiv" style="text-align: center">
+					<input type="checkbox" id="hideRollWithQueueBox" name="hideRollWithQueueBox" value="hideRollWithQueue" onchange="toggleHideRollWithQueue()"><label for="hideRollWithQueueBox">Hide Wheel While Queue Is Inactive</label><br>
+				</div>
+
+				<br />
 				<div class="rollDiv" style="text-align: center">
 					<a href="https://github.com/fmwyso/roller3d">Click here for steps on how to use this page</a>
 				</div>
+				
 			</div>
 		  </div>
 
@@ -159,6 +165,7 @@
 				if(message.type === "STATUS") { 
 					if(message.status == "READY") { 
 						updateChoices();
+						updateWheelVisibility();
 					}
 				}
 				else if(message.type === "FINISHED_SINGLE_ROLL") {
@@ -172,6 +179,7 @@
 				else if(message.type === "FINISHED_ALL_ROLLS") {
 					is_rolling = false;
 					tryToStartRoll();
+					updateWheelVisibility();
 				}
 			}
 
@@ -194,6 +202,7 @@
 			// Users can press a button to trigger "toggleQueue()" to enable/disable queue. 
 			var is_queue_active = false;
 			var is_rolling      = false;
+			var hide_roller_while_inactive = false;
 
 			// Tracking maps for various roll information
 			// The 'key' for every map is the same; the "name" of the person receiving the roll
@@ -275,6 +284,8 @@
 			function disableQueue() { 
 				is_queue_active = false;
 				document.querySelector("#btnToggleQueue").innerHTML = "START Roll Queue";
+
+				updateWheelVisibility();
 			}
 
 			function enableQueue() { 
@@ -282,6 +293,40 @@
 				document.querySelector("#btnToggleQueue").innerHTML = "STOP Roll Queue";
 
 				tryToStartRoll();
+
+				updateWheelVisibility();
+			}
+
+			function wheelShouldBeVisible() { 
+				if(hide_roller_while_inactive === false)
+					return true;
+
+				if(is_queue_active)
+					return true;
+
+				if(is_rolling)
+					return true;
+
+				return false;
+			}
+
+			function updateWheelVisibility() {
+				if(rollDisplayWindow === null) {
+					return;
+				}
+				
+				if(wheelShouldBeVisible()) {
+					rollDisplayWindow.postMessage({type: "SetWheelVisibility", visible: true}, window.location);
+				}
+				else {
+					rollDisplayWindow.postMessage({type: "SetWheelVisibility", visible: false}, window.location);
+				}
+			}
+
+			function toggleHideRollWithQueue() {
+				hide_roller_while_inactive = !hide_roller_while_inactive;
+
+				updateWheelVisibility();
 			}
 
 			function tryToStartRoll() {
@@ -297,12 +342,15 @@
 						is_rolling = true;
 
 						rollDisplayWindow.postMessage({type: "StartRoll", name: getCurRollName(), startingRollCount: getCurRollCount(), rollCountTotal: getCurRollTotal()}, window.location);
+
+						updateWheelVisibility();
 					}
 				}
 			}
 
 			function haltRoll() {
 				is_rolling = false;
+				updateWheelVisibility();
 			}
 
 			// Open display window
