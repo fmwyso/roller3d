@@ -517,7 +517,7 @@
 				else {
 					const rollResultsObject = document.querySelector("#rollResults");
 
-					const rewardString = "Rolled " + reward + " for " + name + " (received on " + timestamp_received + ", rolled on " + getTimeStampString() + ")";
+					const rewardString = getTimeStampString() + ',' + timestamp_received + ',' + name + ',' + reward;
 
 					rollResultsObject.value = rewardString + "\n" + rollResultsObject.value;
 				}
